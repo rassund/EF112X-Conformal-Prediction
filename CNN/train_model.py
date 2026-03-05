@@ -26,7 +26,7 @@ def train_model(dataset, num_classes):
 
     model = models.Sequential()
     # For the first convolution layer, we give a 3-channel RGB image, and we let the convolution layer output a tensor of size 32 (32 "versions" of the same image, since we say that we want to use 32 filters for this conv. layer)
-    model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(image_height, image_width, color_channels)))    #OBS!!!! To standardize, we need to adapt the "input_shape" to always fit the input data (the image dimensions).
+    model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(image_height, image_width, color_channels))) 
     model.add(layers.MaxPooling2D((2, 2)))
     # For the second convolution layer, we don't give a 3-channel RGB image: We instead give a tensor with 32 "channels" (different versions of the same image).
     model.add(layers.Conv2D(64, (3, 3), activation='relu'))

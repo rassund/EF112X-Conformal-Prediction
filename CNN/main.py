@@ -8,7 +8,7 @@ from naive_appr import *    # Import functions defined in "naive_appr.py"
 def cifar10_get_softmax_dists(image_nr):
     # 1) Load your trained CNN
     #base_model = tf.keras.models.load_model("cnn-tensorflow_model.keras")
-    base_model = tf.keras.models.load_model("cnn_softmax_model_TEST.keras")
+    base_model = tf.keras.models.load_model("cnn_softmax_model.keras")
 
     # 2) Load CIFAR-10 test set and normalize to match training preprocessing
     (_, _), (test_images, test_labels) = datasets.cifar10.load_data()
