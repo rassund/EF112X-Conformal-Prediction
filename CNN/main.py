@@ -59,4 +59,4 @@ def cifar10_get_softmax_dists(image_nr):
     plt.show()
 
 
-cifar10_get_softmax_dists(100)
+cifar10_get_softmax_dists(10)
