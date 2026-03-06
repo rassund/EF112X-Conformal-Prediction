@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import datasets
+from functions import create_label_softmax_dict, sort_descending_softmax_dict
 
 
 """
@@ -44,25 +45,13 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, test_label, c
     # Get the softmax distribution of the test point
     softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
 
-    # We create a dictionary so that we can pair each probability with the corresponding class/label.
-    prob_dict = {}
-
-    # For each probability given in the softmax dist, we pair it together with their corresponding label.
-    for i, prob in enumerate(softmax_dist):
-        prob_dict[labels[i]] = prob     # If we choose to not use string labels but instead the label indexes, then we can just use "i" instead of "labels[i]".
-
-    # We sort the list from the highest probability to the lowest.  (Taken from GeeksForGeeks: https://www.geeksforgeeks.org/python/python-sort-python-dictionaries-by-key-or-value/)
-    k = list(prob_dict.keys())
-    v = list(prob_dict.values())
-    idx = np.argsort(v)[::-1]
-    res = {k[i]: v[i] for i in idx}
-    print("\nOrdered list of softmax scores:")
-    print(res)
+    prob_dict = create_label_softmax_dict(labels, softmax_dist)    # Create dictionary which pairs each softmax score with their corresponding label.
+    prob_dict = sort_descending_softmax_dict(prob_dict)            # Sorts the probability dictionary in descending order.
 
     # Now we add the labels whose softmax scores are higher than the threshold value into the prediction region array.
     pred_region = []
-    for item in res:  # Go through each item in the ordered dictionary
-        if res[item] < q:    # For the conventional approach, we only add labels who've gotten a softmax score that is higher than the threshold value "q".
+    for item in prob_dict:  # Go through each item in the ordered dictionary
+        if prob_dict[item] < q:    # For the conventional approach, we only add labels who've gotten a softmax score that is higher than the threshold value "q".
             break
         else:
             pred_region.append(item)

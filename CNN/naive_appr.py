@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import datasets
+from functions import create_label_softmax_dict, sort_descending_softmax_dict
 
 
 """
@@ -19,30 +20,18 @@ def naive_appr(model, labels, test_point, test_label, conf_level):
     # Get the softmax distribution of the test point
     softmax_dist = model.predict(np.array([test_point]))[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
 
-    # We create a dictionary so that we can pair each probability with the corresponding class/label.
-    prob_dict = {}
-
-    # For each probability given in the softmax dist, we pair it together with their corresponding label.
-    for i, prob in enumerate(softmax_dist):
-        prob_dict[labels[i]] = prob     # If we choose to not use string labels but instead the label indexes, then we can just use "i" instead of "labels[i]".
-
-    # We sort the list from the highest probability to the lowest.  (Taken from GeeksForGeeks: https://www.geeksforgeeks.org/python/python-sort-python-dictionaries-by-key-or-value/)
-    k = list(prob_dict.keys())
-    v = list(prob_dict.values())
-    idx = np.argsort(v)[::-1]
-    res = {k[i]: v[i] for i in idx}
-    print("\nOrdered list of softmax scores:")
-    print(res)
+    prob_dict = create_label_softmax_dict(labels, softmax_dist)    # Create dictionary which pairs each softmax score with their corresponding label.
+    prob_dict = sort_descending_softmax_dict(prob_dict)            # Sorts the probability dictionary in descending order.
 
     # Now we just add labels from the ordered dictionary until the sum of their probabilities add up to add least the confidence level.
     sum = 0
     pred_region = []
-    for i, item in enumerate(res):  # Go through each item in the ordered dictionary
+    for i, item in enumerate(prob_dict):  # Go through each item in the ordered dictionary
         if sum > conf_level:    # For the naive approach, if the sum of the softmax scores for the labels already added to the prediction region exceeds the confidence level, then we're done.
             break
         else:
             pred_region.append(item)
-            sum = sum + res[item]
+            sum = sum + prob_dict[item]
             #print("sum = " + str(sum))
 
     print("\nPrediction Region (naive):")
