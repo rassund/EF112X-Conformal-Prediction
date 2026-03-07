@@ -17,6 +17,17 @@ order them from highest to lowest, and then we add every label whose softmax sco
 
 # NOTE: We could output a list of indexes, such that if we get a list of [2, 5, 6] then we know that labels with index 2, 5 and 6 should be a part of the Prediction Region.
 
+def score_function(softmax_scores, true_labels):
+    scores = []
+
+    # For each example given (in which each example has a set of softmax scores), we get the example's true label and get the softmax score for that true label.
+    for i, pred in enumerate(softmax_scores):
+        true_label = true_labels[i]     # Get the true label for this calibration data example
+        scores.append(pred[true_label])    # Add the softmax score given by the model for the actual true label (for this example) into calib_probs.
+
+    return scores
+
+
 # model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  conf_level = If we want a 90% coverage, then conf_level = 0.9.
 def conv_appr(model, labels, calib_input, calib_label, test_point, test_label, conf_level):  
 
@@ -25,12 +36,7 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, test_label, c
     # We first get the calibration dataset, which typically consists of 1000 sample.
     predictions = model.predict(calib_input, batch_size=32)
 
-    calib_probs = []
-
-    # Get the softmax score for each calib. data true label
-    for i, pred in enumerate(predictions):
-        true_label = calib_label[i]     # Get the true label for this calibration data example
-        calib_probs.append(pred[true_label])    # Add the softmax score given by the model for the actual true label (for this example) into calib_probs.
+    calib_probs = score_function(predictions, calib_label)
 
     # If we want a 90% coverage, then we want to find the value which is smaller than 90% of the values/ bigger than 10% of the values in calib_probs
     calib_props = np.array(calib_probs)

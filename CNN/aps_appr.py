@@ -141,5 +141,5 @@ class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', '
 
 image_nr = 2000  # One image taken from the test images from the CIFAR10 dataset.
 
-# Run conventional approach to CP.
+# Run APS approach to CP.
 aps_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], test_labels[image_nr], 0.9)
