@@ -1,5 +1,5 @@
-import tensorflow as tf
-from tensorflow.keras import datasets, layers, models
+import matplotlib.pyplot as plt
+from tensorflow.keras import datasets, layers, models, callbacks
 
 def train_model(dataset, num_classes):
 
@@ -71,6 +71,9 @@ def train_model(dataset, num_classes):
     # With GeeksForGeeks implementation
     model.add(layers.Dense(num_classes, activation='softmax'))
 
+
+    early_stop = callbacks.EarlyStopping(monitor='loss', patience=1)    # Add an "early stop" for training the model: If the training loss stops improving for 1 epoch, then we stop running more epochs.
+
     # Now we can compile the model (we essentially tell the model HOW it should be training itself)
     model.compile(
         optimizer='adam',   # We use a common optimizer using the "Adam algorithm".
@@ -92,11 +95,34 @@ def train_model(dataset, num_classes):
 
     # We then train the model.
     history = model.fit(train_images, train_labels,
-                        epochs=15,
+                        epochs=50,
                         batch_size=64,
                         validation_split=0.2,
-                        verbose=1)
-    
+                        verbose=1,
+                        callbacks=[early_stop])
+
+    plt.figure(figsize=(12,5))
+
+
+    plt.subplot(1,2,1)
+    plt.plot(history.history['accuracy'], label='Train Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.title('Model Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+
+    plt.subplot(1,2,2)
+    plt.plot(history.history['loss'], label='Train Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.title('Model Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.show()
+
 
     #       Explanation of the "epochs" parameter:
     # When training a model, you go through some given training data and let the model predict the true labels (then check how correct its predictions was) for small batches of that training data at a time.
@@ -116,6 +142,7 @@ def train_model(dataset, num_classes):
     # We now save this model so that we don't have to train it again after every time we want to try something new.
     #model.save("cnn-tensorflow_model.keras")
     model.save("cnn_softmax_model.keras")
+    #model.save("testing.keras")
 
 
 

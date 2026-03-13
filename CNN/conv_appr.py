@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import datasets
-from functions import create_label_softmax_dict, sort_descending_softmax_dict
 
 
 """
@@ -28,8 +27,8 @@ def score_function(softmax_scores, true_labels):
     return scores
 
 
-# model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  conf_level = If we want a 90% coverage, then conf_level = 0.9.
-def conv_appr(model, labels, calib_input, calib_label, test_point, test_label, conf_level):  
+# model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  alpha = If we want a 90% coverage, then alpha = 0.1 (since coverage = 1 - alpha).
+def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_label=None):  
 
                 # 1) Get the threshold value
 
@@ -39,8 +38,13 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, test_label, c
     calib_probs = score_function(predictions, calib_label)
 
     # If we want a 90% coverage, then we want to find the value which is smaller than 90% of the values/ bigger than 10% of the values in calib_probs
-    calib_props = np.array(calib_probs)
-    q = np.percentile(calib_props, (1-conf_level)*100)
+    calib_probs = np.array(calib_probs)
+    q = np.percentile(calib_probs, alpha*100)
+
+    #n = len(calib_probs)
+    #q = np.quantile(calib_probs, np.ceil((n+1)*(1-alpha)/n), method='higher')
+
+    np.set_printoptions(precision=4, suppress=True)
     print("\nThreshold value 'q' is: ")
     print(q)
     
@@ -51,19 +55,23 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, test_label, c
     # Get the softmax distribution of the test point
     softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
 
-    prob_dict = create_label_softmax_dict(labels, softmax_dist)    # Create dictionary which pairs each softmax score with their corresponding label.
-    prob_dict = sort_descending_softmax_dict(prob_dict)            # Sorts the probability dictionary in descending order.
-
     # Now we add the labels whose softmax scores are higher than the threshold value into the prediction region array.
-    pred_region = []
-    for item in prob_dict:  # Go through each item in the ordered dictionary
-        if prob_dict[item] < q:    # For the conventional approach, we only add labels who've gotten a softmax score that is higher than the threshold value "q".
-            break
-        else:
-            pred_region.append(item)
+    pred_region = {}
+    for i in range(len(softmax_dist)):  # Go through each softmax score.
+        if softmax_dist[i] > q:    # For the conventional approach, we only add labels who've gotten a softmax score that is higher than the threshold value "q".
+            pred_region[labels[i]] = softmax_dist[i]
+
+    # Special case: If there are no nonconformity scores that are less than the confidence level, we just add the one with the lowest score.
+    if not bool(pred_region):
+        i = np.argmin(softmax_dist)
+        pred_region[labels[i]] = softmax_dist[i]
 
     print("\nPrediction Region (conventional):")
     print(pred_region)
+
+    if test_label is not None:  # If we have given some test label, then we can print it out.
+        true_label = labels[int(test_label.item())]
+        print(f"\nTrue label is: '{true_label}'.\n")
 
     # Possibly print something about "the true label is not in the prediction region" (using the given argument 'test_label').
 
@@ -87,4 +95,4 @@ class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', '
 image_nr = 2000  # One image taken from the test images from the CIFAR10 dataset.
 
 # Run conventional approach to CP.
-conv_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], test_labels[image_nr], 0.9)
+conv_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], 0.1, test_labels[image_nr])

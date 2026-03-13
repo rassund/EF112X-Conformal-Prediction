@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import datasets
-from functions import create_label_softmax_dict, sort_descending_softmax_dict
 
 
 """
@@ -27,58 +26,56 @@ Once we have all our accumulative softmax masses for the new test point, we just
 
 # NOTE: We could output a list of indexes, such that if we get a list of [2, 5, 6] then we know that labels with index 2, 5 and 6 should be a part of the Prediction Region.
 
-# Given some sorted softmax score distribution (from highest to lowest) and the true label for this example, returns the score for the APS approach (i.e returns the accumulative softmax mass of this input and softmax dist.)
-# NOTE: Right now, the "softmax_dist" must be a dictionary, since we map the correct label as a string onto the correct softmax score. 
-#   Later on, we can change some stuff such that we create the dictionary here, where the first softmax score gets label "0", the next gets label "1" etc... And then we can just exchange the label index for the actual label name. (i.e label "0" should be label "airplane"...)
-def score_function(true_label, ordered_softmax):
+# Given some softmax probability distribution and the true label for this example, returns the nonconformity score for the APS approach (i.e returns the accumulative softmax mass of this input and softmax dist.)
+def score_function(softmax_dist, true_label):
 
     score = 0
 
-    # 1) Get the sum of all softmax scores for all the labels before the true label in the ranking.
-    for current_label in ordered_softmax:  # Go through each item in the ordered dictionary
-        # 2) Add the softmax score of the true label * u
-        if current_label == true_label:    # Once we find our true label in the softmax score ranking, we add its softmax score to the sum of softmax scores and then we're done.
+    # Remember the softmax score of the true label.
+    softmax_true_label = softmax_dist[true_label]
 
-            # According to the paper "Uncertainty Sets for Image Classifiers using Conformal Prediction" by Anastasios N. et. al, the accumulative softmax mass for each data point
-            #   should follow this formula: "ρ_x(y) + ˆπ_x(y) · u", in which ρ_x(y) = the sum of the softmax scores for every label BEFORE the true label in the ranking, and ˆπ_x(y) = the softmax score of the true label.
-            #   In this formula, we also have the argument "u", which is included to allow for randomized procedures. For each data-point, we let u be a i.i.d uniform [0, 1] random variable.
-            #   (u seems to be there to help achieve marginal coverage. See https://arxiv.org/pdf/2205.05878 , chapter 2.2  and https://arxiv.org/html/2408.05037v1#bib.bib9 , chapter 2.)
-            u = np.random.uniform(0, 1)
-            score = score + ordered_softmax[current_label]*u  
-            break
-        else:
-            score = score + ordered_softmax[current_label]
+    # 1) Get the sum of all softmax scores for all the labels before the true label in the ranking. 
+    # Instead of having to sort the list of softmax scores, we can just add every softmax score that is HIGHER than the softmax score of the true label, into the score.
+    for i in range(len(softmax_dist)):  # Go through each softmax score.
+        if softmax_dist[i] > softmax_true_label:    # If we find some softmax score that is higher than the true label's softmax score, then that label would be "higher" in the ranking than the true label.
+            score = score + softmax_dist[i]
 
+    # 2) Add the softmax score of the true label * u
+    # According to the paper "Uncertainty Sets for Image Classifiers using Conformal Prediction" by Anastasios N. et. al, the accumulative softmax mass for each data point
+    #   should follow this formula: "ρ_x(y) + ˆπ_x(y) · u", in which ρ_x(y) = the sum of the softmax scores for every label BEFORE the true label in the ranking, and ˆπ_x(y) = the softmax score of the true label.
+    #   In this formula, we also have the argument "u", which is included to allow for randomized procedures. For each data-point, we let u be a i.i.d uniform [0, 1] random variable.
+    #   (u seems to be there to help achieve marginal coverage. See https://arxiv.org/pdf/2205.05878 , chapter 2.2  and https://arxiv.org/html/2408.05037v1#bib.bib9 , chapter 2.)
+    u = np.random.uniform(0, 1)
+    score = score + softmax_true_label*u  
+            
     # 3) Output the score for this softmax distribution.
     return score
 
 
-# model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  conf_level = If we want a 90% coverage, then conf_level = 0.9.
-def aps_appr(model, labels, calib_input, calib_label, test_point, test_label, conf_level):  
+# model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  alpha = If we want a 90% coverage, then alpha = 0.1 (since coverage = 1 - alpha).
+def aps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_label=None):  
 
                 # 1) Get the threshold value
 
     # We first get the calibration dataset, which typically consists of 1000 sample.
-    predictions = model.predict(calib_input, batch_size=32)
+    calib_softmax_dist = model.predict(calib_input, batch_size=32)
 
-    scores = []     # Contains the accumulates softmax masses (given by the score function) for all of the calibration data examples.
+    calib_scores = []     # Contains the accumulates softmax masses (given by the score function) for all of the calibration data examples.
 
     # For each calibration data example, we get the "accumulative softmax mass" by adding up the softmax score for every label BEFORE we reach the example's true label.
-    for current_example_index, softmax_scores in enumerate(predictions):  # For each calibration data example...
-        # We run the score function for each calibration data example.
-        prob_dict = create_label_softmax_dict(labels, softmax_scores)   # Create dictionary which pairs each softmax score with their corresponding label.
-        prob_dict = sort_descending_softmax_dict(prob_dict)            # Sorts the probability dictionary in descending order.
-        true_label = labels[int(calib_label[current_example_index])]    # Get the true label for this calibration data example.
-        scores.append(score_function(true_label, prob_dict))            # Add the score (accumulative softmax mass) for this calibration data example to the list of all calibration data scores.
+    for i in range(len(calib_softmax_dist)):  # For each calibration data example...
+        # We add the score (accumulative softmax mass) for this calibration data example to the list of all calibration data scores.
+        true_label = int(calib_label[i])    # Get the true label for this calibration data example.
+        calib_scores.append(score_function(calib_softmax_dist[i], true_label))          
 
     #print("\nAccumulative softmax mass of the first 10 calib. data examples:")
-    #print(acc_softmax[:10])
+    #print(calib_scores[10:])
 
 
     # Now we get the threshold value "q". If we want a 90% coverage, then "q" must be higher than 90% of the values in "acc_softmax".
     # If we want a 90% coverage, then we want to find the value which is smaller than 90% of the values/ bigger than 10% of the values in calib_probs
-    scores = np.array(scores)
-    q = np.percentile(scores, conf_level*100)
+    calib_scores = np.array(calib_scores)
+    q = np.percentile(calib_scores, (1-alpha)*100)
     print("\nThreshold value 'q' is: ")
     print(q)
 
@@ -87,41 +84,43 @@ def aps_appr(model, labels, calib_input, calib_label, test_point, test_label, co
     # Get the softmax distribution of the test point
     softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
 
-    # We sort the softmax scores from highest to lowest, just like when we computed the threshold value.
-    prob_dict = create_label_softmax_dict(labels, softmax_dist)    # Create dictionary which pairs each softmax score with their corresponding label.
-    prob_dict = sort_descending_softmax_dict(prob_dict)            # Sorts the probability dictionary in descending order.
-    print("\nProbability distribution (in descending order):")
-    print(prob_dict)
+    #print("\nSoftmax Probability distribution:")
+    #print(softmax_dist)
 
     # Now we get the "accumulative softmax score" for each label in the softmax distribution. In other words, we first pretend that the first label in the ranking would be the "true label" and we get the acc. softmax mass.
     #   Then we do the same for if the second label in the ranking would be the "true label". Then the same for every other label in the ranking.
     scores = []
 
     # Now we add every softmax score until we get to the example's true label, and we add it to the "acc_softmax" array.
-    for item in prob_dict:
-        true_label = item # We pretend the "true label" is first the first label in the ranking, then the second, then the third...
-        scores.append(score_function(true_label, prob_dict))
+    for i in range(len(softmax_dist)):
+        # We pretend the "true label" is first the first label in the ranking, then the second, then the third...
+        scores.append(score_function(softmax_dist, i))
 
         # The first element in the "acc_softmax" array will now be for the first label in the ranking of the softmax_dist array. The second element -||- the second label in softmax_dist. etc...
 
-    #print("\nAccumulative softmax score for this test point: \n{ ")
-    #for i, item in enumerate(prob_dict):
-    #    print("\t" + str(item) + " : " + str(acc_softmax[i]) + ", ")
-    #print("}")
+    print("\nAccumulative softmax mass for this test point: \n{ ")
+    for i in range(len(softmax_dist)):
+        print(f"\t Label {i} : {scores[i]}, ")
+    print("}")
 
     # Now that we've gotten the accumulated softmax masses for the entire softmax distribution for this new test point, 
     # we can now add every such mass that has a lower value than the threshold value "q" into our prediction region.
-    pred_region = []
-    for i, item in enumerate(prob_dict):  # Go through each accumulated softmax mass for this test point.
-        if scores[i] > q:    # For the APS approach, we only want the labels whose accumulated softmax score is lower than the threshold value.
-            break
-        else:
-            pred_region.append(item)
+    pred_region = {}
+    for i in range(len(softmax_dist)):  # Go through each accumulated softmax mass for this test point.
+        if scores[i] < q:    # For the APS approach, we only want the labels whose accumulated softmax mass (score) is lower than the threshold value.
+            pred_region[labels[i]] = scores[i]
+
+    # Special case: If there are no nonconformity scores that are less than the confidence level, we just add the one with the lowest score.
+    if not bool(pred_region):
+        i = np.argmin(scores)
+        pred_region[labels[i]] = scores[i]
 
     print("\nPrediction Region (APS):")
     print(pred_region)
 
-    # Possibly print something about "the true label is not in the prediction region" (using the given argument 'test_label').
+    if test_label is not None:  # If we have given some test label, then we can print it out.
+        true_label = labels[int(test_label.item())]
+        print(f"\nTrue label is: '{true_label}'.\n")
 
     return pred_region
 
@@ -142,4 +141,4 @@ class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', '
 image_nr = 2000  # One image taken from the test images from the CIFAR10 dataset.
 
 # Run APS approach to CP.
-aps_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], test_labels[image_nr], 0.9)
+aps_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], 0.1, test_labels[image_nr])
