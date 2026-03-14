@@ -72,10 +72,12 @@ def aps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_la
     #print(calib_scores[10:])
 
 
-    # Now we get the threshold value "q". If we want a 90% coverage, then "q" must be higher than 90% of the values in "acc_softmax".
-    # If we want a 90% coverage, then we want to find the value which is smaller than 90% of the values/ bigger than 10% of the values in calib_probs
-    calib_scores = np.array(calib_scores)
-    q = np.percentile(calib_scores, (1-alpha)*100)
+    # If we want a 90% coverage, and we know that the nonconformity score is always higher the more "bad" of a guess for true label the model gives, 
+    # then we want the threshold value "q" to be a value higher than 90% of all scores, i.e we want "q" to be in the 10th quantile of scores.
+    # We compute this value, the threshold value "q", using the formula presented in Chapter 1 of the paper "A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification" (Anastasios et. al)
+    n = len(calib_scores)
+    q_level = int(np.ceil((n + 1) * (1 - alpha)))
+    q = np.quantile(calib_scores, q_level / n, method='higher')
     print("\nThreshold value 'q' is: ")
     print(q)
 
@@ -98,16 +100,16 @@ def aps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_la
 
         # The first element in the "acc_softmax" array will now be for the first label in the ranking of the softmax_dist array. The second element -||- the second label in softmax_dist. etc...
 
-    print("\nAccumulative softmax mass for this test point: \n{ ")
-    for i in range(len(softmax_dist)):
-        print(f"\t Label {i} : {scores[i]}, ")
-    print("}")
+    #print("\nAccumulative softmax mass for this test point: \n{ ")
+    #for i in range(len(softmax_dist)):
+    #    print(f"\t Label {i} : {scores[i]}, ")
+    #print("}")
 
     # Now that we've gotten the accumulated softmax masses for the entire softmax distribution for this new test point, 
     # we can now add every such mass that has a lower value than the threshold value "q" into our prediction region.
     pred_region = {}
     for i in range(len(softmax_dist)):  # Go through each accumulated softmax mass for this test point.
-        if scores[i] < q:    # For the APS approach, we only want the labels whose accumulated softmax mass (score) is lower than the threshold value.
+        if scores[i] <= q:    # For the APS approach, we only want the labels whose accumulated softmax mass (score) is lower than the threshold value.
             pred_region[labels[i]] = scores[i]
 
     # Special case: If there are no nonconformity scores that are less than the confidence level, we just add the one with the lowest score.

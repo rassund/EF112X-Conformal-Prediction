@@ -91,12 +91,12 @@ def cifar10_per_class_acc():
     for i in range(10):
         accuracy_per_class = examples_with_correct_guess[i] / examples_per_class[i]
         print(f"Class {i}: {accuracy_per_class:.4f}")
-        
+
 
 
 # Given a set of scores (given by a score function by some conformal prediction method), a number of "rounds" to go through, the number of calibration data samples (among the set of scores), 
 # and a value "alpha" (in which the desired coverage is "1 - alpha"), this function computes the marginal coverage for these scores.
-def evaluate_marg_coverage(method, scores, num_rounds, n, alpha):
+def evaluate_marg_coverage(scores, num_rounds, alpha):
     '''
     Evaluate marginal coverage (or validity). We check if the method produces prediction sets with a mathematical guarantee of marginal coverage 
     (first check for 90% coverage, then 95% coverage, then 99% coverage)
@@ -137,6 +137,7 @@ def evaluate_marg_coverage(method, scores, num_rounds, n, alpha):
 
     # We know that we will get "R" (or in this case, "num_rounds") empirical coverages, so we initiate a list with "R" indexes, all with an initial value of 0.
     coverages = np.zeros((num_rounds,))
+    n = len(scores)     # NOTE: Ej säker på om det här är korrekt...
 
     for r in range(num_rounds):
         np.random.shuffle(scores) # We shuffle the scores to get a "new" set of calibration and validation 
@@ -145,6 +146,7 @@ def evaluate_marg_coverage(method, scores, num_rounds, n, alpha):
         coverages[r] = (val_scores <= qhat).astype(float).mean() # see caption
     average_coverage = coverages.mean() # should be close to 1-alpha
     plt.hist(coverages) # should be roughly centered at 1-alpha
+    #plt.hist(average_coverage)
 
 def evaluate_efficiency():
     '''
