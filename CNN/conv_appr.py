@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import datasets
-#from functions import evaluate_marg_coverage
+from functions import evaluate_marg_coverage
 
 
 """
@@ -51,7 +51,6 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_l
     # We compute this value, the threshold value "q", using the formula presented in Chapter 1 of the paper "A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification" (Anastasios et. al)
     n = len(calib_probs)
     q_level = int(np.ceil((n + 1) * (1 - alpha)))
-    #print(f"Number of calibration data samples are: {n}.  The q-level would then be: {q_level}.")
     q = np.quantile(calib_probs, q_level / n, method='higher')
 
     #np.set_printoptions(precision=4, suppress=True)
@@ -109,10 +108,16 @@ image_nr = 2000  # One image taken from the test images from the CIFAR10 dataset
 alpha = 0.1
 
 # Run conventional approach to CP.
-conv_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], alpha, test_labels[image_nr])
+#conv_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], alpha, test_labels[image_nr])
 
-predictions = base_model.predict(test_images, batch_size=32)
-num_rounds = 20
-#evaluate_marg_coverage(test_images, num_rounds, 1 - alpha)  # We choose 1 - alpha since we want the threshold value to be higher than "alpha * 100 of scores".
-                                                    # The evaluation function instead gets a threshold value that is "higher than 1 - alpha * 100 of scores", so by giving "alpha = 1 - 0.1" (for example),
-                                                    # then the evaluation function will get a threshold value that is "higher than 0.1 of all scores", which is what we want.
+
+# Evaluating marginal coverage
+softmax_scores = base_model.predict(test_images, batch_size=32) # Get the softmax scores for all test images.
+
+# Get the nonconformity scores for all test data, using this method's score function
+scores = score_function(softmax_scores, test_labels)
+
+n = 9000    # The CIFAR10 dataset contains 10 000 test images/labels. We use 9000 of them as "calibration data" when evaluating marginal coverage.
+num_rounds = 10
+alpha = 0.1
+evaluate_marg_coverage(scores, num_rounds, n, alpha)

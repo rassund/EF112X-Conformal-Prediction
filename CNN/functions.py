@@ -94,9 +94,9 @@ def cifar10_per_class_acc():
 
 
 
-# Given a set of scores (given by a score function by some conformal prediction method), a number of "rounds" to go through, the number of calibration data samples (among the set of scores), 
+# Given a set of scores (given by a score function by some conformal prediction method), a number of "rounds" to go through, the number of calibration data samples "n" (among the set of scores), 
 # and a value "alpha" (in which the desired coverage is "1 - alpha"), this function computes the marginal coverage for these scores.
-def evaluate_marg_coverage(scores, num_rounds, alpha):
+def evaluate_marg_coverage(scores, num_rounds, n, alpha):
     '''
     Evaluate marginal coverage (or validity). We check if the method produces prediction sets with a mathematical guarantee of marginal coverage 
     (first check for 90% coverage, then 95% coverage, then 99% coverage)
@@ -128,6 +128,11 @@ def evaluate_marg_coverage(scores, num_rounds, alpha):
 
     True label is covered <===> s(x, y_true) <= q
     Let's break down "coverages[r] = (val_scores <= qhat).astype(float).mean()":
+        We want to find which percentage of validation data examples produce a prediction region which contains the TRUE LABEL. But we don't include any true labels as an argument to this function, so how can we check if the true label is covered?
+        Well, for this function, we accept a set of SCORES. How do we get these scores? We put some input and ITS TRUE LABEL into a score function, and it gives a score which kind of represents how much the model thinks the input and the true label fit together.
+        In this way, as long as we use nonconformity scores, we in a way actually DO check which true labels are covered in the prediction region (by checking which of these scores, which actually represent the true label, would be a part of the prediction region).
+
+        To be more technical:
         val_scores <= qhat   returns a True or a False value. If we convert this into floats, we get a "1" for true, and a "0" for false.
         So we go through all the validation scores (i.e the scores which are s(x, y_true) i.e the score for the validation example's true label)
         and check which validation scores (i.e true label scores) would be a part of the prediction region (gives "1"), and which would not (gives "0").
@@ -137,16 +142,27 @@ def evaluate_marg_coverage(scores, num_rounds, alpha):
 
     # We know that we will get "R" (or in this case, "num_rounds") empirical coverages, so we initiate a list with "R" indexes, all with an initial value of 0.
     coverages = np.zeros((num_rounds,))
-    n = len(scores)     # NOTE: Ej säker på om det här är korrekt...
 
+    # We go through R rounds, shuffle all the scores, choose some scores as calibration data scores, 
+    # get the correct threshold value "q" (1-alpha:th percentile of calibration data scores) and then 
     for r in range(num_rounds):
-        np.random.shuffle(scores) # We shuffle the scores to get a "new" set of calibration and validation 
-        calib_scores, val_scores = (scores[:n],scores[n:]) # split
-        qhat = np.quantile(calib_scores, np.ceil((n+1)*(1-alpha)/n), method='higher') # calibrate
-        coverages[r] = (val_scores <= qhat).astype(float).mean() # see caption
-    average_coverage = coverages.mean() # should be close to 1-alpha
-    plt.hist(coverages) # should be roughly centered at 1-alpha
-    #plt.hist(average_coverage)
+        np.random.shuffle(scores) # We shuffle the scores to get a "new" set of calibration and validation scores.
+        calib_scores, val_scores = (scores[:n],scores[n:]) # We choose the "n" first scores as calibration data scores, the rest are validation scores.
+
+        # NOTE: Corrected? In research paper, we round up "(n + 1) * (1 - alpha)/n" to the nearest integer. From testing, we seem to get more accurate threshold values by rounding up "(n + 1) * (1 - alpha)" and dividing by n.
+        q_level = int(np.ceil((n + 1) * (1 - alpha)))
+        q = np.quantile(calib_scores, q_level/n, method='higher') # We get the threshold value "q", which is the value at the "1-alpha":th quantile of the calibration data scores.
+
+        # NOTE: Taken right from research paper "A Gentle Introduction..." by Anastasios et. al
+        #q = np.quantile(calib_scores, np.ceil((n + 1) * (1 - alpha)/n), method='higher') # We get the threshold value "q", which is the value at the "1-alpha":th quantile of the calibration data scores.
+
+        print(f"\nRound {r+1}: Threshold value: {q}.")
+        coverages[r] = (val_scores <= q).astype(float).mean()
+        print(f"Coverage: {coverages[r]}.")
+    print(f"\nAverage coverage = {coverages.mean()}.\n") # should be close to 1-alpha
+    print(f"Expected coverage = {1 - alpha}.\n")
+    #plt.hist(coverages) # should be roughly centered at 1-alpha
+    #plt.show()
 
 def evaluate_efficiency():
     '''

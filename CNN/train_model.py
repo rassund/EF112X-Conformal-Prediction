@@ -142,7 +142,6 @@ def train_model(dataset, num_classes):
     # We now save this model so that we don't have to train it again after every time we want to try something new.
     #model.save("cnn-tensorflow_model.keras")
     model.save("cnn_softmax_model.keras")
-    #model.save("testing.keras")
 
 
 

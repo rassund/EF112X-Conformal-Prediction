@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import datasets
+from functions import evaluate_marg_coverage
 
 
 """
@@ -143,4 +144,18 @@ class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', '
 image_nr = 2000  # One image taken from the test images from the CIFAR10 dataset.
 
 # Run APS approach to CP.
-aps_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], 0.1, test_labels[image_nr])
+#aps_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], 0.1, test_labels[image_nr])
+
+
+# Evaluating marginal coverage
+softmax_scores = base_model.predict(test_images, batch_size=32) # Get the softmax scores for all test images.
+
+# Get the nonconformity scores for all test data, using this method's score function
+scores = []
+for i, example in enumerate(softmax_scores):
+    scores.append(score_function(example, test_labels[i]))  # Get the nonconformity score for this example
+
+n = 9000    # The CIFAR10 dataset contains 10 000 test images/labels. We use 9000 of them as "calibration data" when evaluating marginal coverage.
+num_rounds = 10
+alpha = 0.1
+evaluate_marg_coverage(scores, num_rounds, n, alpha)
