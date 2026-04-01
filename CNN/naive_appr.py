@@ -108,9 +108,6 @@ def naive_appr(model, labels, test_point, alpha, test_label=None):
     return pred_region
 
     
-    
-
-
 
 #       1) Get a new test point
 # Load CNN model + CIFAR-10 test set and normalize to match training preprocessing

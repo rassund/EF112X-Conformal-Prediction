@@ -161,8 +161,8 @@ def evaluate_marg_coverage(scores, num_rounds, n, alpha):
         print(f"Coverage: {coverages[r]}.")
     print(f"\nAverage coverage = {coverages.mean()}.\n") # should be close to 1-alpha
     print(f"Expected coverage = {1 - alpha}.\n")
-    #plt.hist(coverages) # should be roughly centered at 1-alpha
-    #plt.show()
+    plt.hist(coverages) # should be roughly centered at 1-alpha
+    plt.show()
 
 def evaluate_efficiency():
     '''
@@ -184,5 +184,17 @@ def evaluate_cond_coverage():
     We measure this by checking the FSC (Feature-stratified coverage metric) for the chosen method.
     On page 13 of "A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification", 
         it is discussed how FSC can be used to check how close the method is to achieving conditional coverage.
+
+    From "A Gentle Introduction...", the correct implementation seems to be:
+    1. Divide the evaluation data into some K groups (so we have groups G_1, G_2, ..., G_K). Each group in turn contains a set of validation data examples, along with the true label for each such example.
+    2. For each group, you get the prediction region for each example and count how many of them contains the example's true label. We then divide this sum with the total amount of examples in this group.
+    3. After we have now gotten the empirical coverage for each group, we then return the lowest empirical coverage among all the groups.
+    The closer this "minimum group-wise empirical coverage" is to 1 - alpha, the closer the method is to achieving conditional coverage. 
+
+
+    According to the paper, a first step would be to plot histograms of the prediction set sizes. We want to check for adaptivity: 
+    If all prediction sets have about equal sizes, then the CP method might have bad adaptivity since the prediction regions do not get much smaller if the model gives good guesses (and do not get much larger if the model gives bad guesses).
+    If all prediction sets have very varying sizes (if we have 10 labels, then some sets might have 2 label, some might have 6, some might have 9, etc...), then the method might have good adaptivity.
+    HOWEVER: To check adaptivity, this is often not enough. We can now with this whether or not the prediction sets have dynamic sizes, but we still "need to verify that that large sets occur for hard example" (taken from paper).
     '''
     return
