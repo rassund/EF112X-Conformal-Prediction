@@ -176,7 +176,8 @@ def evaluate_efficiency():
     '''
     return
 
-def evaluate_cond_coverage():
+# Given a set of 
+def evaluate_cond_coverage(scores, labels, calib_input, calib_label, test_point, alpha):
     '''
     Evaluate conditional coverage. See how close the prediction sets are towards achieving conditional coverage. 
     NOTE: By asking for the conditional coverage, we can also formalize the adaptivity of each method.
@@ -195,6 +196,39 @@ def evaluate_cond_coverage():
     According to the paper, a first step would be to plot histograms of the prediction set sizes. We want to check for adaptivity: 
     If all prediction sets have about equal sizes, then the CP method might have bad adaptivity since the prediction regions do not get much smaller if the model gives good guesses (and do not get much larger if the model gives bad guesses).
     If all prediction sets have very varying sizes (if we have 10 labels, then some sets might have 2 label, some might have 6, some might have 9, etc...), then the method might have good adaptivity.
-    HOWEVER: To check adaptivity, this is often not enough. We can now with this whether or not the prediction sets have dynamic sizes, but we still "need to verify that that large sets occur for hard example" (taken from paper).
+    HOWEVER: To check adaptivity, this is often not enough. We can now with this whether or not the prediction sets have dynamic sizes, but we still "need to verify that that large sets occur for hard examples" (taken from paper).
+
+
+    Good source: https://arxiv.org/html/2512.11779v1
+
+    OBS!: It seems best to use SSC together with FSC to evaluate conditional coverage. 
+    In SSC, we divide the examples into groups in which: 
+        Group 1. The prediction set contains 1 element.
+        Group 2. The prediction set contains 1 < x =< [total number of labels / 2] elements.
+        Group 3. The prediction set contains > [total number of labels / 2] elements.
+    So we get the prediction regions for each example, group them together, then check how many contains the true label, in order to check adaptivity more easily (so we check "When the method gives me a small (or large) set, can I trust it?").
+
+    In the paper: "https://arxiv.org/pdf/2501.10139",
+    the authors say that they use the CovGap method to evaluate conditional coverage. 
+    According to the paper, it seems like they group the test data into several "groups" based on some feature 
+    (where they do 2 groupings which both start with grouping the test data according to how confident their number 1 "most likely label" is for each example, 
+    and 1 grouping where each group consists of examples who share the same true label). 
+    For the CovGap method, it seems like they describe it as them first getting the mean empirical coverage of each group, 
+    then for each group they check how far off that is from perfect conditional coverage 
+    (so if the mean empirical coverage across the group is 91% and we want 90% conditional coverage, then there is a "difference" ^c_b = 1%), 
+    then we get the "mean difference" for all groups.
+
+    So we can use SSC along with FSC (where we group examples on confidence, and then group on true labels), then also CovGap (where we group in the same way).
+    I.e, we group examples on confidence by selecting:
+        Group 1: Highest softmax score for example is >= 0.9.
+        Group 2: Highest softmax score for example is 0.9 < x =< 0.5
+        Group 3: Highest softmax score for example is < 0.5
+    
+    Then we group examples on true label by selecting:
+        Group 1: Contains only examples whose true label is "label 1".
+        Group 2: Contains only examples whose true label is "label 2"
+        etc...
     '''
+
+
     return

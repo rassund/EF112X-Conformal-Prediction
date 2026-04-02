@@ -116,7 +116,7 @@ base_model = tf.keras.models.load_model("cnn_softmax_model.keras")
 test_images = test_images.astype("float32") / 255.0
 
 # All possible labels for the CIFAR10 dataset.
-class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+#class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
 image_nr = 3   # One image taken from the test images from the CIFAR10 dataset.
 
