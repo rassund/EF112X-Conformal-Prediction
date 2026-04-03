@@ -230,5 +230,49 @@ def evaluate_cond_coverage(scores, labels, calib_input, calib_label, test_point,
         etc...
     '''
 
+    # Compute FSC and CovGap
+    # Do this BEFORE we get any scores. So we want to have a list of softmax scores for each test data example, so we can group them on confidence and true label.
 
+    # Compute SSC
+    # Do this AFTER we've gotten a prediction region for each example.
+
+
+    # IDEA: We can for each example use all other examples as "calibration data", or we just use the last 5000 test data examples as calibration data for every method (and bin).
+
+
+    return
+
+
+# Given ..., we evaluate "feature-stratified coverage" for the given data.
+# We divide the given data into several groups based on a certain characteristic/feature, 
+# and we return the lowest coverage among all groups.
+
+# This is to know if coverage remains approximately correct across these certain characteristics/features. We check if, for the chosen groupings, there is any under-coverage.
+# In our case, we check "confidence-wise" FSC and "class-wise" FSC.
+#   * For "confidence-wise" FSC, we check if the desired coverage is more or less achieved regardless of how "confident" the model is in its guesses.
+#     This can be used to prove adaptivity, since the desired coverage is achieved for all different confidence levels (for the tested data).
+#   * For "class-wise" FSC, we check if the desired coverage is more or less achieved for all possible classes/labels.
+#     If proved, it would mean the given CP method does not violate class-wise conditional coverage too much (though it does not prove group-wise conditional coverage).    
+def evaluate_fsc():
+    return
+
+
+
+# Given ..., we evaluate the "average coverage gap" across all the data.
+# We divide the given data into several groups based on a certain characteristic/feature, 
+# and for each group we compute how much the "mean empirical coverage" differs from the desired coverage.
+# We then return the average of these "differences".
+
+# This is to know on average how far off the CP method is from achieving group-wise conditional coverage.
+def evaluate_covgap():
+    return
+
+
+# Given ..., we evaluate the "size-stratified coverage" for the given prediction sets.
+# We divide the given prediction sets into several groups based on how many elements are in them.
+# We then return the lowest coverage among all groups.
+
+# This is to find out more on the adaptiveness of the CP method: 
+# If all different sizes of prediction sets give at least the required coverage, then the CP method's allocation of set sizes strongly supports adaptivity.
+def evaluate_ssc():
     return
