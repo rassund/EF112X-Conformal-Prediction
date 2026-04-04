@@ -27,9 +27,7 @@ For example, if some label had a nonconformity score of 0.98 and we want a cover
 For that reason, we only have to exclude all labels whose nonconformity scores are higher than the required coverage!
 """
 
-# NOTE: We could output a list of indexes, such that if we get a list of [2, 5, 6] then we know that labels with index 2, 5 and 6 should be a part of the Prediction Region.
-
-# Given a model, some input test point "x", and the input test point's true label "y", computes the "naive" score s(x, y) for this test point.
+# Given some softmax score distribution "x" for some data point, and that data point's true label "y", computes the "naive" score s(x, y) for this test point.
 def score_function(softmax_dist, true_label):
     """
     Given some input "x" and its true label "y", we get the softmax distribution for the input.

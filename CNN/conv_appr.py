@@ -20,18 +20,13 @@ and we see which labels give nonconformity scores which are lower than the thres
 
 # NOTE: We could output a list of indexes, such that if we get a list of [2, 5, 6] then we know that labels with index 2, 5 and 6 should be a part of the Prediction Region.
 
-# Given a set of examples/softmax score distributions (1 or more) and a list containing the true label for each given softmax score distribution, computes the nonformity score for these examples.
-def score_function(softmax_scores, true_labels):
-    scores = []
-    # For each example given (in which each example has a set of softmax scores), we get the example's true label and get the softmax score for that true label.
-    for i, pred in enumerate(softmax_scores):
-        true_label = true_labels[i]     # Get the true label for this calibration data example
-        # In several papers, such as pages 5 and 11 in "A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification" by Anastasios et al.,
-        # it is discussed that the nonconformity score for an example should be high if the chosen true label is very unlikely (according to the model) to be the actual true label.
-        # This is why the nonconformity score for the conventional approach to CP must be "1 - softmax score of the true label", such that if the model gives the true label a smaller softmax score,
-        # then the nonconformity score must be higher.
-        scores.append(1 - pred[true_label])    # Add "1 - (the softmax score given by the model for the actual true label (for this example))" into the list of nonconformity scores for the given examples.
-    return scores
+# Given some softmax score distribution "x" for some data point, and that data point's true label "y", computes the "conventional" score s(x, y) for this test point.
+def score_function(softmax_dist, true_label):
+    # In several papers, such as pages 5 and 11 in "A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification" by Anastasios et al.,
+    # it is discussed that the nonconformity score for an example should be high if the chosen true label is very unlikely (according to the model) to be the actual true label.
+    # This is why the nonconformity score for the conventional approach to CP must be "1 - softmax score of the true label", such that if the model gives the true label a smaller softmax score,
+    # then the nonconformity score must be higher.
+    return (1 - softmax_dist[true_label])
 
 # model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  alpha = If we want a 90% coverage, then alpha = 0.1 (since coverage = 1 - alpha).
 def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_label=None):  
@@ -41,7 +36,12 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_l
     # We first get the calibration dataset, which typically consists of 1000 sample.
     predictions = model.predict(calib_input, batch_size=32)
 
-    calib_probs = score_function(predictions, calib_label)
+    calib_probs = []     # Contains the nonconformity scores given by the score function for each example.
+
+    for i in range(len(predictions)):  # For each calibration data example...
+        # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
+        true_label = int(calib_label[i])    # Get the true label for this calibration data example.
+        calib_probs.append(score_function(predictions[i], true_label)) 
 
     #print("Calib_probs softmax scores:")
     #print(calib_probs)
@@ -97,6 +97,8 @@ base_model = tf.keras.models.load_model("cnn_softmax_model.keras")
 (_, _), (test_images, test_labels) = datasets.cifar10.load_data()
 test_images = test_images.astype("float32") / 255.0
 
+
+'''
 # Get the first 1000 images + labels from the test data as calibration data.
 calibration_images = test_images[:1000]
 calibration_labels = test_labels[:1000]  
@@ -108,14 +110,17 @@ image_nr = 2000  # One image taken from the test images from the CIFAR10 dataset
 alpha = 0.1
 
 # Run conventional approach to CP.
-#conv_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], alpha, test_labels[image_nr])
+conv_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], alpha, test_labels[image_nr])
+'''
 
 
 # Evaluating marginal coverage
 softmax_scores = base_model.predict(test_images, batch_size=32) # Get the softmax scores for all test images.
 
 # Get the nonconformity scores for all test data, using this method's score function
-scores = score_function(softmax_scores, test_labels)
+scores = []
+for i, example in enumerate(softmax_scores):
+    scores.append(score_function(example, test_labels[i]))  # Get the nonconformity score for this example
 
 n = 9000    # The CIFAR10 dataset contains 10 000 test images/labels. We use 9000 of them as "calibration data" when evaluating marginal coverage.
 num_rounds = 10

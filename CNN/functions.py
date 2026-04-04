@@ -176,8 +176,10 @@ def evaluate_efficiency():
     '''
     return
 
-# Given a set of 
-def evaluate_cond_coverage(scores, labels, calib_input, calib_label, test_point, alpha):
+# Given a call to a score function, a set of all possible labels, some "alpha" value, 
+# some "input & true label" pairs for calibration data and some "input & true label" pairs for validation data,
+# this function evaluates conditional coverage for the given data and the given score function using FSC, SSC and CovGap metrics.
+def evaluate_cond_coverage(score_function, labels, calib_input, calib_label, val_input, val_label, alpha):
     '''
     Evaluate conditional coverage. See how close the prediction sets are towards achieving conditional coverage. 
     NOTE: By asking for the conditional coverage, we can also formalize the adaptivity of each method.
@@ -233,29 +235,121 @@ def evaluate_cond_coverage(scores, labels, calib_input, calib_label, test_point,
     # Compute FSC and CovGap
     # Do this BEFORE we get any scores. So we want to have a list of softmax scores for each test data example, so we can group them on confidence and true label.
 
+    # For FSC and CovGap, we have 1 set of groups based on the "confidence" of the model, i.e the highest softmax score for the example.
+    # Group 1: max(softmax_scores) >= 0.9     Group 2: 0.9 > max(softmax_scores) >= 0.5.     Group 3: 0.5 > max(softmax_scores)
+    conf_group = {
+        1 : [],
+        2 : [],
+        3 : []
+    }
+
+    # For FSC and CovGap, we also have 1 set of groups based on their true label. 
+    # Group 1: all examples who have true label "label 1". Group 2: All examples who have true label "label 2", etc...
+    tlabel_group = {}
+
+    val_scores = np.zeros((len(labels,)))
+
+    # Get all examples in "val_input" into their respective "conf_group" group and "tlabel_group" group, and get the nonconformity scores for each 
+    for example, i in enumerate(val_input):
+        highest = max(example)  # Get the highest softmax score for this example.
+
+        # We add the index of this example in "calib_input" to represent this example, into the correct "conf_group" group.
+        if highest >= 0.9:      # If this example's highest softmax score is equal to or higher than 0.9, then we add it to the first group.
+            conf_group[1].append(i)
+        elif highest >= 0.5:    # If this example's highest softmax score is not higher than 0.9 but is higher than 0.5, we add it to the second group.
+            conf_group[2].append(i)
+        else:                   # If example's -||- is not higher than 0.5, we add it to the second group.
+            conf_group[3].append(i)
+        
+        # We also add the index of this example in "calib_input" into the correct "tlabel_group" group.
+        # NOTE: This might not work. In that case, maybe: https://stackoverflow.com/questions/11509721/how-do-i-initialize-a-dictionary-of-empty-lists-in-python
+        tlabel_group[val_label[i]].append(i)
+
+        # We also get the nonconformity score for each validation example.
+        true_label = int(val_label[i])
+        val_scores.append(score_function(val_input[i], true_label))
+
+
+    # We can also get the threshold value for the given score function.
+    calib_scores = np.zeros((len(labels,)))
+    for i in range(len(calib_input)):  # For each calibration data example...
+        # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
+        true_label = int(calib_label[i])    # Get the true label for this calibration data example.
+        calib_scores.append(score_function(calib_input[i], true_label))
+
+    # See "evaluate_marg_coverage()"
+    n = len(calib_scores)
+    q_level = int(np.ceil((n + 1) * (1 - alpha)))
+    threshold = np.quantile(calib_scores, q_level/n, method='higher') # We get the threshold value "q", which is the value at the "1-alpha":th quantile of the calibration data scores.
+
+    
+    # Now that we have all our groups, we can evaluate FSC and CovGap.
+    print(f"Confidence-based FSC gives a lowest mean empirical coverage of {evaluate_fsc(conf_group, threshold, val_scores)}.")
+    print(f"Class-based FSC gives a lowest mean empirical coverage of {evaluate_fsc(tlabel_group, threshold, val_scores)}.")
+
+    # NOTE: Here I should write my calls to "evaluate_covgap()" once I'm done with them
+    print(f"Confidence-based CovGap gives an average of differences of {evaluate_covgap(conf_group, threshold, val_scores, alpha)}.")
+    print(f"Class-based CovGap gives an average of differences of {evaluate_covgap(tlabel_group, threshold, val_scores, alpha)}.")
+
+
+    # We have now evaluated FSC and CovGap. To evaluate SSC, we need to see how big each example's prediction sets would be.
+
+    # NOTE: TO BE CONTINUED hihi //Albert
+
     # Compute SSC
     # Do this AFTER we've gotten a prediction region for each example.
 
-
-    # IDEA: We can for each example use all other examples as "calibration data", or we just use the last 5000 test data examples as calibration data for every method (and bin).
-
+    size_group = {
+        1 : [0, 0],
+        2 : [0, 0],
+        3 : [0, 0]
+    }
 
     return
 
 
-# Given ..., we evaluate "feature-stratified coverage" for the given data.
-# We divide the given data into several groups based on a certain characteristic/feature, 
-# and we return the lowest coverage among all groups.
+# Given ....,
+# we evaluate "feature-stratified coverage" for the given data.
+# We calculate the mean empirical coverage for each group and then return the lowest coverage among all groups.
 
 # This is to know if coverage remains approximately correct across these certain characteristics/features. We check if, for the chosen groupings, there is any under-coverage.
 # In our case, we check "confidence-wise" FSC and "class-wise" FSC.
 #   * For "confidence-wise" FSC, we check if the desired coverage is more or less achieved regardless of how "confident" the model is in its guesses.
 #     This can be used to prove adaptivity, since the desired coverage is achieved for all different confidence levels (for the tested data).
 #   * For "class-wise" FSC, we check if the desired coverage is more or less achieved for all possible classes/labels.
-#     If proved, it would mean the given CP method does not violate class-wise conditional coverage too much (though it does not prove group-wise conditional coverage).    
-def evaluate_fsc():
-    return
+#     If proved, it would mean the given CP method does not violate class-wise conditional coverage too much (though it does not PROVE group-wise conditional coverage per-se).    
+def evaluate_fsc(groups, threshold, val_scores):
+    '''
+    From "A Gentle Introduction...", the correct implementation seems to be:
+    1. Divide the evaluation data into some K groups (so we have groups G_1, G_2, ..., G_K). Each group in turn contains a set of validation data examples, along with the true label for each such example.
+    2. For each group, you get the prediction region for each example and count how many of them contains the example's true label. We then divide this sum with the total amount of examples in this group.
+    3. After we have now gotten the empirical coverage for each group, we then return the lowest empirical coverage among all the groups.
+    The closer this "minimum group-wise empirical coverage" is to 1 - alpha, the closer the method is to achieving conditional coverage. 
+    '''
+    is_in_pred_region = {}
+    mean_empirical_coverages = []
+    
 
+    # For each group...
+    for group in groups:
+        # ...We go through each example in that group.
+        for example in groups[group]:
+            # We now get the mean empirical coverage for this group of validation data examples. 
+            # We do this by finding all validation scores corresponding to each example in this group, 
+            # and see if the prediction set created from this validation data example would contain the true label.
+            # We check that by seeing if the nonconformity score given to the actual true label for this example (which is what val_scores[i] is) is less than the threshold value,
+            # which would mean that the true label WOULD be included in this example's prediction region.
+            
+            # In other words, we go through all the validation scores (i.e the scores which are s(x, y_true) i.e the score for the validation example's true label) for this group,
+            # and check which validation scores (i.e true label scores) would be a part of the prediction region (gives "1"), and which would not (gives "0").
+
+            is_in_pred_region[group] += (val_scores[example] <= threshold).astype(float)    # If this example's true label would be in the prediction region, then we add "+1" to this group's "is_in_pred_region" list. If not, then "+0" is added.
+        
+        # When we've gotten the number of examples in this group that would contain the true label, we can then make that into a percentage of how many examples contain the true label.
+        mean_empirical_coverages.append(is_in_pred_region[group].mean())
+
+    # After doing this for all groups, we can now return the lowest mean empirical coverage among all groups.
+    return min(mean_empirical_coverages)
 
 
 # Given ..., we evaluate the "average coverage gap" across all the data.
@@ -264,8 +358,34 @@ def evaluate_fsc():
 # We then return the average of these "differences".
 
 # This is to know on average how far off the CP method is from achieving group-wise conditional coverage.
-def evaluate_covgap():
-    return
+def evaluate_covgap(groups, threshold, val_scores, alpha):
+    # NOTE: I'm a bit tired right now, so I should write some comment on how this works later (maybe after testing though)
+    is_in_pred_region = {}
+    differences = []
+    
+    # For each group...
+    for group in groups:
+        # ...We go through each example in that group.
+        for example in groups[group]:
+            # We now get the mean empirical coverage for this group of validation data examples. 
+            # We do this by finding all validation scores corresponding to each example in this group, 
+            # and see if the prediction set created from this validation data example would contain the true label.
+            # We check that by seeing if the nonconformity score given to the actual true label for this example (which is what val_scores[i] is) is less than the threshold value,
+            # which would mean that the true label WOULD be included in this example's prediction region.
+            
+            # In other words, we go through all the validation scores (i.e the scores which are s(x, y_true) i.e the score for the validation example's true label) for this group,
+            # and check which validation scores (i.e true label scores) would be a part of the prediction region (gives "1"), and which would not (gives "0").
+
+            is_in_pred_region[group] += (val_scores[example] <= threshold).astype(float)    # If this example's true label would be in the prediction region, then we add "+1" to this group's "is_in_pred_region" list. If not, then "+0" is added.
+        
+        # When we've gotten the number of examples in this group that would contain the true label, we can then make that into a percentage of how many examples contain the true label.
+        mean_empirical_coverage = is_in_pred_region[group].mean()
+        
+        # We then calculate and save how far off this group's coverage is from perfect group-wise coverage.
+        differences.append(abs(  (1 - alpha) - mean_empirical_coverage  ))
+    
+    # After doing this for all groups, we can now return the average of all these differences.
+    return differences.mean()
 
 
 # Given ..., we evaluate the "size-stratified coverage" for the given prediction sets.
@@ -276,3 +396,6 @@ def evaluate_covgap():
 # If all different sizes of prediction sets give at least the required coverage, then the CP method's allocation of set sizes strongly supports adaptivity.
 def evaluate_ssc():
     return
+
+
+

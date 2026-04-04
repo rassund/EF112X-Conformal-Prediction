@@ -93,8 +93,7 @@ def raps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_l
     n = len(calib_scores)
     q_level = int(np.ceil((n + 1) * (1 - alpha)))
     q = np.quantile(calib_scores, q_level / n, method='higher')
-    print("\nThreshold value 'q' is: ")
-    print(q)
+    print(f"\nThreshold value 'q' is: {q}")
 
 
                 # 2) Add labels into our prediction region.
