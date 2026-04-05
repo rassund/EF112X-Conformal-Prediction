@@ -178,7 +178,7 @@ def evaluate_efficiency():
 
 # Given a call to a score function, a set of all possible labels, some "alpha" value, 
 # some "input & true label" pairs for calibration data and some "input & true label" pairs for validation data,
-# this function evaluates conditional coverage for the given data and the given score function using FSC, SSC and CovGap metrics.
+# this function evaluates conditional coverage for the given data and the given score function using FSC and CovGap metrics.
 def evaluate_cond_coverage(score_function, labels, calib_input, calib_label, val_input, val_label, alpha):
     '''
     Evaluate conditional coverage. See how close the prediction sets are towards achieving conditional coverage. 
@@ -290,22 +290,90 @@ def evaluate_cond_coverage(score_function, labels, calib_input, calib_label, val
     # NOTE: Here I should write my calls to "evaluate_covgap()" once I'm done with them
     print(f"Confidence-based CovGap gives an average of differences of {evaluate_covgap(conf_group, threshold, val_scores, alpha)}.")
     print(f"Class-based CovGap gives an average of differences of {evaluate_covgap(tlabel_group, threshold, val_scores, alpha)}.")
+    return
 
+# Given a call to a score function, a set of all possible labels, some "alpha" value, 
+# some "input & true label" pairs for calibration data and some "input & true label" pairs for validation data,
+# this function evaluates the adaptivity for the given data and the given score function by giving a histogram of the different prediction set sizes, and through the SSC metric.
+def evaluate_adaptivity(score_function, labels, calib_input, calib_label, val_input, val_label, alpha):
+    # We first get the threshold value for the given score function.
+    calib_scores = np.zeros((len(labels,)))
+    for i in range(len(calib_input)):  # For each calibration data example...
+        # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
+        true_label = int(calib_label[i])    # Get the true label for this calibration data example.
+        calib_scores.append(score_function(calib_input[i], true_label))
 
-    # We have now evaluated FSC and CovGap. To evaluate SSC, we need to see how big each example's prediction sets would be.
+    # See "evaluate_marg_coverage()"
+    n = len(calib_scores)
+    q_level = int(np.ceil((n + 1) * (1 - alpha)))
+    threshold = np.quantile(calib_scores, q_level/n, method='higher') # We get the threshold value "q", which is the value at the "1-alpha":th quantile of the calibration data scores.
 
-    # NOTE: TO BE CONTINUED hihi //Albert
+    # After we've gotten the threshold value, we can to find out which validation data examples should be in which group.
+    val_scores = []
 
-    # Compute SSC
-    # Do this AFTER we've gotten a prediction region for each example.
-
+    '''
+        Group 1. The prediction set contains 1 element.
+        Group 2. The prediction set contains 1 < x =< [total number of labels / 2] elements.
+        Group 3. The prediction set contains > [total number of labels / 2] elements.
+    '''
     size_group = {
-        1 : [0, 0],
-        2 : [0, 0],
-        3 : [0, 0]
+        1 : [],
+        2 : [],
+        3 : []
     }
 
-    return
+    # To see how many prediction sets of each size there is, we use the below array.
+    pred_set_sizes = np.zeros((len(labels,)))   # A prediction set can have a maximum of "len(labels)" labels inside it, and a minimum of 1 label (or technically 0, but that should never happen)
+
+    for example, i in enumerate(val_input):
+
+        # We assemble the prediction set to find out how many elements would be in the example's prediction set.
+        scores = []
+
+        # We first get the nonconformity score for each label.
+        for label in range(len(example)):
+            scores.append(score_function(val_input[i], label))
+
+        # After we've gotten a nonconformity score for each label for this example, we see which ones would be in the produced prediction region.
+        # We get the amount of scores that are below the threshold value, i.e the scores for all labels that would be in the prediction set.
+        num_of_labels_in_pred_set = (scores <= threshold).sum() # Goes through all scores in "scores". Every score that is lower than "threshold" makes it so the expression = True = 1. Otherwise, the expression = False = 0.
+
+        # In order to show a histogram of the prediction set sizes for all examples, we add "+1" to the "pred_set_sizes" array, with the index being the length of the prediction set.
+        pred_set_sizes[num_of_labels_in_pred_set - 1] += 1    # If we have 1 label in the prediction set, that would be put into index "0" in the "pred_set_sizes" array.
+
+        # Now we can put this example into the correct group in "size_group".
+        if num_of_labels_in_pred_set == 1:  # If the pred. set only contains only 1 label, we put it into group 1.
+            size_group[1].append(i)
+
+        elif num_of_labels_in_pred_set <= np.ceil(len(labels)/2):   # If the pred. set contains from 2 to [total number of labels / 2] labels, we put it into group 2.
+            size_group[2].append(i)
+
+        else:
+            size_group[3].append(i) # Otherwise, if the pred. set contains more than [total number of labels / 2] labels, we put it into group 3.
+        
+        # We also save the softmax score of the actual true label into "val_scores".
+        true_label = int(val_label[i])
+        val_scores.append(scores[true_label])
+
+
+    # Once we've gone through every example and added them into the correct group, we can now get the SSC metric for this data (which is the same as the FSC metric, just that we use "size_group"...)
+    print(f"SSC gives a lowest mean empirical coverage of {evaluate_fsc(size_group, threshold, val_scores)}.")
+
+    # We can also show a histogram with the sizes of all validation example prediction sets, to see if there are varying sizes of prediction sets (which is required for good adaptivity)
+    # NOTE: pred_set_sizes gives the amount of examples with prediction sets of different lengths. 
+    #   pred_set_sizes[0] gives the amount of examples whose pred. sets contain only 1 label. 
+    #   pred_set_sizes[1] gives the amount of examples whose pred. sets contain 2 labels.
+    #   pred_set_sizes[2] gives -||- 3 labels.
+    #   etc....
+
+
+    # NOTE: Here are my previous notes for "evaluate_ssc()", which is a function not needed since the only difference between FSC and SSC is that in SSC, each group is divided on how many labels there are in the example's prediction set.
+        # Given ..., we evaluate the "size-stratified coverage" for the given prediction sets.
+        # We divide the given prediction sets into several groups based on how many elements are in them.
+        # We then return the lowest coverage among all groups.
+
+        # This is to find out more on the adaptiveness of the CP method: 
+        # If all different sizes of prediction sets give at least the required coverage, then the CP method's allocation of set sizes strongly supports adaptivity.
 
 
 # Given ....,
@@ -386,16 +454,6 @@ def evaluate_covgap(groups, threshold, val_scores, alpha):
     
     # After doing this for all groups, we can now return the average of all these differences.
     return differences.mean()
-
-
-# Given ..., we evaluate the "size-stratified coverage" for the given prediction sets.
-# We divide the given prediction sets into several groups based on how many elements are in them.
-# We then return the lowest coverage among all groups.
-
-# This is to find out more on the adaptiveness of the CP method: 
-# If all different sizes of prediction sets give at least the required coverage, then the CP method's allocation of set sizes strongly supports adaptivity.
-def evaluate_ssc():
-    return
 
 
 
