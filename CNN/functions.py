@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras import datasets
+from collections import defaultdict
 
 
 def cifar10_get_softmax_dists(image_nr):
@@ -161,6 +162,8 @@ def evaluate_marg_coverage(scores, num_rounds, n, alpha):
         print(f"Coverage: {coverages[r]}.")
     print(f"\nAverage coverage = {coverages.mean()}.\n") # should be close to 1-alpha
     print(f"Expected coverage = {1 - alpha}.\n")
+
+    # NOTE: We should probably make this histogram look nicer...
     plt.hist(coverages) # should be roughly centered at 1-alpha
     plt.show()
 
@@ -179,7 +182,7 @@ def evaluate_efficiency():
 # Given a call to a score function, a set of all possible labels, some "alpha" value, 
 # some "input & true label" pairs for calibration data and some "input & true label" pairs for validation data,
 # this function evaluates conditional coverage for the given data and the given score function using FSC and CovGap metrics.
-def evaluate_cond_coverage(score_function, labels, calib_input, calib_label, val_input, val_label, alpha):
+def evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha):
     '''
     Evaluate conditional coverage. See how close the prediction sets are towards achieving conditional coverage. 
     NOTE: By asking for the conditional coverage, we can also formalize the adaptivity of each method.
@@ -245,12 +248,12 @@ def evaluate_cond_coverage(score_function, labels, calib_input, calib_label, val
 
     # For FSC and CovGap, we also have 1 set of groups based on their true label. 
     # Group 1: all examples who have true label "label 1". Group 2: All examples who have true label "label 2", etc...
-    tlabel_group = {}
+    tlabel_group = defaultdict(list)    # As recommended in https://stackoverflow.com/questions/11509721/how-do-i-initialize-a-dictionary-of-empty-lists-in-python
 
-    val_scores = np.zeros((len(labels,)))
+    val_scores = []
 
     # Get all examples in "val_input" into their respective "conf_group" group and "tlabel_group" group, and get the nonconformity scores for each 
-    for example, i in enumerate(val_input):
+    for i, example in enumerate(val_input):
         highest = max(example)  # Get the highest softmax score for this example.
 
         # We add the index of this example in "calib_input" to represent this example, into the correct "conf_group" group.
@@ -262,8 +265,8 @@ def evaluate_cond_coverage(score_function, labels, calib_input, calib_label, val
             conf_group[3].append(i)
         
         # We also add the index of this example in "calib_input" into the correct "tlabel_group" group.
-        # NOTE: This might not work. In that case, maybe: https://stackoverflow.com/questions/11509721/how-do-i-initialize-a-dictionary-of-empty-lists-in-python
-        tlabel_group[val_label[i]].append(i)
+        label = val_label[i].item() # Might be a temporary fix, since specifically the CIFAR10 dataset gives val_label examples as shape (N, 1) (and not (N,)), so we need to extract the "value" of the label first.
+        tlabel_group[label].append(i)
 
         # We also get the nonconformity score for each validation example.
         true_label = int(val_label[i])
@@ -271,7 +274,7 @@ def evaluate_cond_coverage(score_function, labels, calib_input, calib_label, val
 
 
     # We can also get the threshold value for the given score function.
-    calib_scores = np.zeros((len(labels,)))
+    calib_scores = []
     for i in range(len(calib_input)):  # For each calibration data example...
         # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
         true_label = int(calib_label[i])    # Get the true label for this calibration data example.
@@ -283,21 +286,27 @@ def evaluate_cond_coverage(score_function, labels, calib_input, calib_label, val
     threshold = np.quantile(calib_scores, q_level/n, method='higher') # We get the threshold value "q", which is the value at the "1-alpha":th quantile of the calibration data scores.
 
     
+    print("\nNumber of examples in each group:")
+    for i, group in enumerate(conf_group):
+        print(f"Group {i+1} in conf_group has {len(conf_group[group])} examples.\n")
+    for i, group in enumerate(tlabel_group):
+        print(f"Group {i+1} in tlabel_group has {len(tlabel_group[group])} examples.\n")
+
     # Now that we have all our groups, we can evaluate FSC and CovGap.
-    print(f"Confidence-based FSC gives a lowest mean empirical coverage of {evaluate_fsc(conf_group, threshold, val_scores)}.")
-    print(f"Class-based FSC gives a lowest mean empirical coverage of {evaluate_fsc(tlabel_group, threshold, val_scores)}.")
+    print(f"\nConfidence-based FSC gives a lowest mean empirical coverage of {evaluate_fsc(conf_group, threshold, val_scores)}.\n")
+    print(f"Class-based FSC gives a lowest mean empirical coverage of {evaluate_fsc(tlabel_group, threshold, val_scores)}.\n")
 
     # NOTE: Here I should write my calls to "evaluate_covgap()" once I'm done with them
-    print(f"Confidence-based CovGap gives an average of differences of {evaluate_covgap(conf_group, threshold, val_scores, alpha)}.")
-    print(f"Class-based CovGap gives an average of differences of {evaluate_covgap(tlabel_group, threshold, val_scores, alpha)}.")
+    print(f"\nConfidence-based CovGap gives an average of differences of {evaluate_covgap(conf_group, threshold, val_scores, alpha)}.\n")
+    print(f"Class-based CovGap gives an average of differences of {evaluate_covgap(tlabel_group, threshold, val_scores, alpha)}.\n")
     return
 
 # Given a call to a score function, a set of all possible labels, some "alpha" value, 
 # some "input & true label" pairs for calibration data and some "input & true label" pairs for validation data,
 # this function evaluates the adaptivity for the given data and the given score function by giving a histogram of the different prediction set sizes, and through the SSC metric.
-def evaluate_adaptivity(score_function, labels, calib_input, calib_label, val_input, val_label, alpha):
+def evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha):
     # We first get the threshold value for the given score function.
-    calib_scores = np.zeros((len(labels,)))
+    calib_scores = []
     for i in range(len(calib_input)):  # For each calibration data example...
         # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
         true_label = int(calib_label[i])    # Get the true label for this calibration data example.
@@ -323,9 +332,9 @@ def evaluate_adaptivity(score_function, labels, calib_input, calib_label, val_in
     }
 
     # To see how many prediction sets of each size there is, we use the below array.
-    pred_set_sizes = np.zeros((len(labels,)))   # A prediction set can have a maximum of "len(labels)" labels inside it, and a minimum of 1 label (or technically 0, but that should never happen)
+    pred_set_sizes = np.zeros(num_of_labels)   # A prediction set can have a maximum of "len(labels)" labels inside it, and a minimum of 1 label (or technically 0, but that should never happen)
 
-    for example, i in enumerate(val_input):
+    for i, example in enumerate(val_input):
 
         # We assemble the prediction set to find out how many elements would be in the example's prediction set.
         scores = []
@@ -345,7 +354,7 @@ def evaluate_adaptivity(score_function, labels, calib_input, calib_label, val_in
         if num_of_labels_in_pred_set == 1:  # If the pred. set only contains only 1 label, we put it into group 1.
             size_group[1].append(i)
 
-        elif num_of_labels_in_pred_set <= np.ceil(len(labels)/2):   # If the pred. set contains from 2 to [total number of labels / 2] labels, we put it into group 2.
+        elif num_of_labels_in_pred_set <= np.ceil(num_of_labels/2):   # If the pred. set contains from 2 to [total number of labels / 2] labels, we put it into group 2.
             size_group[2].append(i)
 
         else:
@@ -355,9 +364,12 @@ def evaluate_adaptivity(score_function, labels, calib_input, calib_label, val_in
         true_label = int(val_label[i])
         val_scores.append(scores[true_label])
 
+    print("\nNumber of examples in each group:")
+    for i, group in enumerate(size_group):
+        print(f"Group {i+1} in size_group has {len(size_group[group])} examples.\n")
 
     # Once we've gone through every example and added them into the correct group, we can now get the SSC metric for this data (which is the same as the FSC metric, just that we use "size_group"...)
-    print(f"SSC gives a lowest mean empirical coverage of {evaluate_fsc(size_group, threshold, val_scores)}.")
+    print(f"\nSSC gives a lowest mean empirical coverage of {evaluate_fsc(size_group, threshold, val_scores)}.\n")
 
     # We can also show a histogram with the sizes of all validation example prediction sets, to see if there are varying sizes of prediction sets (which is required for good adaptivity)
     # NOTE: pred_set_sizes gives the amount of examples with prediction sets of different lengths. 
@@ -365,6 +377,20 @@ def evaluate_adaptivity(score_function, labels, calib_input, calib_label, val_in
     #   pred_set_sizes[1] gives the amount of examples whose pred. sets contain 2 labels.
     #   pred_set_sizes[2] gives -||- 3 labels.
     #   etc....
+
+    # We create a figure which shows how many of each possible prediction set size we have (how many examples have only 1 label in their prediction set, how many have 2 labels, etc...)
+    # We first get an array of values from "1" to "num_of_labels+1" so that we can have the x-axle in our matplotlib plot be "1, 2, 3, 4, ..., num_of_labels" (so if num_of_labels = 5, then we get the x-axle to be "1  2  3  4  5".)
+    set_sizes = []
+    for i in range(num_of_labels):
+        set_sizes.append(i+1)
+    
+    plt.figure()
+    plt.bar(set_sizes, pred_set_sizes)  # x-axle: set_sizes. y-axle: the number of examples in pred_set_sizes for each set_sizes value.
+    plt.xlabel("Prediction set size")
+    plt.ylabel("Number of validation data examples")
+    plt.title("Number of examples with each prediction set size")
+    plt.show()
+
 
 
     # NOTE: Here are my previous notes for "evaluate_ssc()", which is a function not needed since the only difference between FSC and SSC is that in SSC, each group is divided on how many labels there are in the example's prediction set.
@@ -392,7 +418,7 @@ def evaluate_fsc(groups, threshold, val_scores):
     1. Divide the evaluation data into some K groups (so we have groups G_1, G_2, ..., G_K). Each group in turn contains a set of validation data examples, along with the true label for each such example.
     2. For each group, you get the prediction region for each example and count how many of them contains the example's true label. We then divide this sum with the total amount of examples in this group.
     3. After we have now gotten the empirical coverage for each group, we then return the lowest empirical coverage among all the groups.
-    The closer this "minimum group-wise empirical coverage" is to 1 - alpha, the closer the method is to achieving conditional coverage. 
+    The closer this "minimum group-wise empirical coverage" is to 1 - alpha, the closer the method is to achieving conditional coverage (?).
     '''
     is_in_pred_region = {}
     mean_empirical_coverages = []
@@ -400,6 +426,7 @@ def evaluate_fsc(groups, threshold, val_scores):
 
     # For each group...
     for group in groups:
+        is_in_pred_region[group] = 0    # Initialize this group's "is_in_pred_region" value.
         # ...We go through each example in that group.
         for example in groups[group]:
             # We now get the mean empirical coverage for this group of validation data examples. 
@@ -411,12 +438,24 @@ def evaluate_fsc(groups, threshold, val_scores):
             # In other words, we go through all the validation scores (i.e the scores which are s(x, y_true) i.e the score for the validation example's true label) for this group,
             # and check which validation scores (i.e true label scores) would be a part of the prediction region (gives "1"), and which would not (gives "0").
 
-            is_in_pred_region[group] += (val_scores[example] <= threshold).astype(float)    # If this example's true label would be in the prediction region, then we add "+1" to this group's "is_in_pred_region" list. If not, then "+0" is added.
+            is_in_pred_region[group] += (val_scores[example] <= threshold)    # If this example's true label would be in the prediction region, then we add "+1" to this group's "is_in_pred_region" list. If not, then "+0" is added.
         
         # When we've gotten the number of examples in this group that would contain the true label, we can then make that into a percentage of how many examples contain the true label.
-        mean_empirical_coverages.append(is_in_pred_region[group].mean())
+        if len(groups[group]) > 0:  # Special case: If there are NO examples which fit into group nr. "group", then we skip adding that mean empirical coverage.
+            mean_empirical_coverage = (is_in_pred_region[group] / len(groups[group])).astype(float)
+            mean_empirical_coverages.append(mean_empirical_coverage)
+        else:
+            print(f"\nGroup number {group} contains no examples.")
 
     # After doing this for all groups, we can now return the lowest mean empirical coverage among all groups.
+
+    '''
+    print("\nTESTING\n")
+    for i, cov in enumerate(mean_empirical_coverages):
+        print(f"Group {i} gives mean emp. cov. of {cov}.\n")
+    '''
+
+
     return min(mean_empirical_coverages)
 
 
@@ -433,6 +472,7 @@ def evaluate_covgap(groups, threshold, val_scores, alpha):
     
     # For each group...
     for group in groups:
+        is_in_pred_region[group] = 0    # Initialize this group's "is_in_pred_region" value.
         # ...We go through each example in that group.
         for example in groups[group]:
             # We now get the mean empirical coverage for this group of validation data examples. 
@@ -444,16 +484,19 @@ def evaluate_covgap(groups, threshold, val_scores, alpha):
             # In other words, we go through all the validation scores (i.e the scores which are s(x, y_true) i.e the score for the validation example's true label) for this group,
             # and check which validation scores (i.e true label scores) would be a part of the prediction region (gives "1"), and which would not (gives "0").
 
-            is_in_pred_region[group] += (val_scores[example] <= threshold).astype(float)    # If this example's true label would be in the prediction region, then we add "+1" to this group's "is_in_pred_region" list. If not, then "+0" is added.
+            is_in_pred_region[group] += (val_scores[example] <= threshold)    # If this example's true label would be in the prediction region, then we add "+1" to this group's "is_in_pred_region" list. If not, then "+0" is added.
         
         # When we've gotten the number of examples in this group that would contain the true label, we can then make that into a percentage of how many examples contain the true label.
-        mean_empirical_coverage = is_in_pred_region[group].mean()
-        
-        # We then calculate and save how far off this group's coverage is from perfect group-wise coverage.
-        differences.append(abs(  (1 - alpha) - mean_empirical_coverage  ))
+        if len(groups[group]) > 0:  # Special case: If there are NO examples which fit into group nr. "group", then we skip adding that mean empirical coverage.
+            mean_empirical_coverage = (is_in_pred_region[group] / len(groups[group])).astype(float)
+            
+            # We then calculate and save how far off this group's coverage is from perfect group-wise coverage.
+            differences.append(abs(  (1 - alpha) - mean_empirical_coverage  ))
+        else:
+            print(f"\nGroup number {group} contains no examples.")
     
     # After doing this for all groups, we can now return the average of all these differences.
-    return differences.mean()
+    return (sum(differences) / len(differences))
 
 
 
