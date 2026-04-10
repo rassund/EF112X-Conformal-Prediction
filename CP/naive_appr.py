@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import datasets
-from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity
+from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
 
 
 """
@@ -109,7 +109,7 @@ def naive_appr(model, labels, test_point, alpha, test_label=None):
 
 #       1) Get a new test point
 # Load CNN model + CIFAR-10 test set and normalize to match training preprocessing
-base_model = tf.keras.models.load_model("cnn_softmax_model.keras")
+base_model = tf.keras.models.load_model("CNN/cnn_softmax_model.keras")
 (_, _), (test_images, test_labels) = datasets.cifar10.load_data()
 test_images = test_images.astype("float32") / 255.0
 
@@ -149,5 +149,4 @@ val_label = test_labels[rest:]
 evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
 evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
 
-
-
+evaluate_efficiency(naive_appr)

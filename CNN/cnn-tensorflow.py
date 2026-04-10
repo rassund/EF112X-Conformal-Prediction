@@ -88,7 +88,7 @@ history = model.fit(train_images, train_labels, epochs=10,
 
 
 # We now save this model so that we don't have to train it again after every time we want to try something new.
-model.save("cnn-tensorflow_model.keras")
+model.save("CNN/cnn-tensorflow_model.keras")
 
     # Evalutate the model
 #plt.plot(history.history['accuracy'], label='accuracy')
