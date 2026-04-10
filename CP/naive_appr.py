@@ -65,8 +65,8 @@ def naive_appr(model, labels, test_point, alpha, test_label=None):
     #np.set_printoptions(precision=4, suppress=True)
     #print(model.predict(np.array([test_point]))[0])
 
-    print("\nList of nonconformity scores:")
-    print(scores)
+    #print("\nList of nonconformity scores:")
+    #print(scores)
 
     # Every label with a nonconformity score lower than the wanted coverage level should be a part of the prediction region.
     # This is the same as sorting every softmax score from highest to lowest, adding labels from highest to lowest until their combined softmax score > conf_level.
@@ -96,8 +96,8 @@ def naive_appr(model, labels, test_point, alpha, test_label=None):
         i = final_softmax_index
         pred_region[labels[i]] = final_softmax_score
 
-    print("\nPrediction Region (naive):")
-    print(pred_region)
+    #print("\nPrediction Region (naive):")
+    #print(pred_region)
 
     if test_label is not None:  # If we have given some test label, then we can print it out.
         true_label = labels[int(test_label.item())]
@@ -114,7 +114,7 @@ base_model = tf.keras.models.load_model("CNN/cnn_softmax_model.keras")
 test_images = test_images.astype("float32") / 255.0
 
 # All possible labels for the CIFAR10 dataset.
-#class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
 #image_nr = 3   # One image taken from the test images from the CIFAR10 dataset.
 
@@ -133,7 +133,7 @@ for i, example in enumerate(softmax_scores):
 n = 9000    # The CIFAR10 dataset contains 10 000 test images/labels. We use 9000 of them as "calibration data" when evaluating marginal coverage.
 num_rounds = 10
 alpha = 0.1
-evaluate_marg_coverage(scores, num_rounds, n, alpha)
+#evaluate_marg_coverage(scores, num_rounds, n, alpha)
 
 # Evaluate adaptivity & conditional coverage
 num_of_labels = 10  # In the CIFAR10 dataset, we have 10 possible labels.
@@ -146,7 +146,7 @@ rest = len(softmax_scores) - n
 val_input = softmax_scores[rest:]   # The last examples of "softmax_scores" are used as validation data examples.
 val_label = test_labels[rest:]
 
-evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
-evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
+#evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
+#evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
 
-evaluate_efficiency(naive_appr)
+evaluate_efficiency(naive_appr, base_model, test_images[:500], class_names, 0.1)

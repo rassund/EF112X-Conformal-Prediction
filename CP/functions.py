@@ -167,7 +167,7 @@ def evaluate_marg_coverage(scores, num_rounds, n, alpha):
     plt.hist(coverages) # should be roughly centered at 1-alpha
     plt.show()
 
-def evaluate_efficiency():
+def evaluate_efficiency(cp_appr, pred_model, test_images, labels, alpha):
     '''
     Evaluate efficiency, i.e the average set size. The smaller the set sizes on average, the more efficient the method is.
 
@@ -176,8 +176,20 @@ def evaluate_efficiency():
 
     IDEA: We can evaluate marginal coverage, i.e check how much coverage the prediction set actually achieves.
     The closer the actual marginal coverage is to the wanted marginal coverage, the better the efficiency of the method.
+
+    IDEA: Create a bunch of sets, find their mean size for different choices of alpha.
+    "UNCERTAINTY SETS FOR IMAGE CLASSIFIERS USING CONFORMAL PREDICTION" does 100 trials of each procedure for two different choices of alpha.
+    The median-of-means is then taken to determine the average set size.
     '''
-    return
+    # For each test image, compute the prediction set and record the size
+    # Split the data into 20 groups and take the mean of each group, then return the median of the means
+    set_sizes = [len(cp_appr(pred_model, labels, test_image, alpha)) for test_image in test_images]
+    np.random.shuffle(set_sizes)
+    groups = np.array_split(set_sizes, 20)
+    means = [group.mean() for group in groups]
+    median = np.median(means)
+    print(f"Median-of-means: {median}")
+    return median
 
 # Given a call to a score function, a set of all possible labels, some "alpha" value, 
 # some "input & true label" pairs for calibration data and some "input & true label" pairs for validation data,
