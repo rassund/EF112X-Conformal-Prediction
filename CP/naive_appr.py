@@ -84,6 +84,7 @@ def naive_appr(model, labels, test_point, alpha, test_label=None):
         # Therefore, we keep track of which label has the highest softmax score whose nonconformity score still exceeds the required coverage.
         elif score < final_softmax_score:
             final_softmax_index = i
+            final_softmax_score = score
 
     # Special case: If there are no nonconformity scores that are less than the confidence level, we just add the one with the highest score.
     if not bool(pred_region):
@@ -149,4 +150,4 @@ val_label = test_labels[rest:]
 #evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
 #evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
 
-evaluate_efficiency(naive_appr, base_model, test_images[:500], class_names, 0.1)
+evaluate_efficiency(naive_appr, base_model, test_images[:100], class_names, 0.1)
