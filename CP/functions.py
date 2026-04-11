@@ -167,7 +167,7 @@ def evaluate_marg_coverage(scores, num_rounds, n, alpha):
     plt.hist(coverages) # should be roughly centered at 1-alpha
     plt.show()
 
-def evaluate_efficiency(cp_appr, pred_model, test_images, labels, alpha):
+def evaluate_efficiency(cp_appr, pred_model, test_images, labels, alpha, calib_input=None, calib_label=None):
     '''
     Evaluate efficiency, i.e the average set size. The smaller the set sizes on average, the more efficient the method is.
 
@@ -183,7 +183,10 @@ def evaluate_efficiency(cp_appr, pred_model, test_images, labels, alpha):
     '''
     # For each test image, compute the prediction set and record the size
     # Split the data into 20 groups and take the mean of each group, then return the median of the means
-    set_sizes = [len(cp_appr(pred_model, labels, test_image, alpha)) for test_image in test_images]
+    if (calib_input is None or calib_label is None):
+        set_sizes = [len(cp_appr(pred_model, labels, test_image, alpha)) for test_image in test_images]
+    else:
+        set_sizes = [len(cp_appr(pred_model, labels, calib_input, calib_label, test_image, alpha)) for test_image in test_images]
     np.random.shuffle(set_sizes)
     groups = np.array_split(set_sizes, 20)
     means = [group.mean() for group in groups]
@@ -281,7 +284,7 @@ def evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, 
         tlabel_group[label].append(i)
 
         # We also get the nonconformity score for each validation example.
-        true_label = int(val_label[i])
+        true_label = int(val_label[i].item())
         val_scores.append(score_function(val_input[i], true_label))
 
 
@@ -289,7 +292,7 @@ def evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, 
     calib_scores = []
     for i in range(len(calib_input)):  # For each calibration data example...
         # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
-        true_label = int(calib_label[i])    # Get the true label for this calibration data example.
+        true_label = int(calib_label[i].item())    # Get the true label for this calibration data example.
         calib_scores.append(score_function(calib_input[i], true_label))
 
     # See "evaluate_marg_coverage()"
@@ -321,7 +324,7 @@ def evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label,
     calib_scores = []
     for i in range(len(calib_input)):  # For each calibration data example...
         # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
-        true_label = int(calib_label[i])    # Get the true label for this calibration data example.
+        true_label = int(calib_label[i].item())    # Get the true label for this calibration data example.
         calib_scores.append(score_function(calib_input[i], true_label))
 
     # See "evaluate_marg_coverage()"
@@ -373,7 +376,7 @@ def evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label,
             size_group[3].append(i) # Otherwise, if the pred. set contains more than [total number of labels / 2] labels, we put it into group 3.
         
         # We also save the softmax score of the actual true label into "val_scores".
-        true_label = int(val_label[i])
+        true_label = int(val_label[i].item())
         val_scores.append(scores[true_label])
 
     print("\nNumber of examples in each group:")

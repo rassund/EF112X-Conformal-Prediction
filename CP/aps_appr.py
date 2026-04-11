@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import datasets
-from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity
+from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
 
 
 """
@@ -59,14 +59,14 @@ def aps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_la
                 # 1) Get the threshold value
 
     # We first get the calibration dataset, which typically consists of 1000 sample.
-    calib_softmax_dist = model.predict(calib_input, batch_size=32)
+    calib_softmax_dist = model.predict(calib_input, batch_size=32, verbose=0)
 
     calib_scores = []     # Contains the accumulates softmax masses (given by the score function) for all of the calibration data examples.
 
     # For each calibration data example, we get the "accumulative softmax mass" by adding up the softmax score for every label BEFORE we reach the example's true label.
     for i in range(len(calib_softmax_dist)):  # For each calibration data example...
         # We add the score (accumulative softmax mass) for this calibration data example to the list of all calibration data scores.
-        true_label = int(calib_label[i])    # Get the true label for this calibration data example.
+        true_label = int(calib_label[i].item())    # Get the true label for this calibration data example.
         calib_scores.append(score_function(calib_softmax_dist[i], true_label))          
 
     #print("\nAccumulative softmax mass of the first 10 calib. data examples:")
@@ -79,8 +79,8 @@ def aps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_la
     n = len(calib_scores)
     q_level = int(np.ceil((n + 1) * (1 - alpha)))
     q = np.quantile(calib_scores, q_level / n, method='higher')
-    print("\nThreshold value 'q' is: ")
-    print(q)
+    #print("\nThreshold value 'q' is: ")
+    #print(q)
 
 
                 # 2) Add labels into our prediction region.
@@ -118,8 +118,8 @@ def aps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_la
         i = np.argmin(scores)
         pred_region[labels[i]] = scores[i]
 
-    print("\nPrediction Region (APS):")
-    print(pred_region)
+    #print("\nPrediction Region (APS):")
+    #print(pred_region)
 
     if test_label is not None:  # If we have given some test label, then we can print it out.
         true_label = labels[int(test_label.item())]
@@ -130,7 +130,7 @@ def aps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_la
 
 #       1) Get a new test point
 # Load CNN model + CIFAR-10 test set and normalize to match training preprocessing
-base_model = tf.keras.models.load_model("cnn_softmax_model.keras")
+base_model = tf.keras.models.load_model("CNN/cnn_softmax_model.keras")
 (_, _), (test_images, test_labels) = datasets.cifar10.load_data()
 test_images = test_images.astype("float32") / 255.0
 
@@ -158,7 +158,7 @@ for i, example in enumerate(softmax_scores):
 n = 9000    # The CIFAR10 dataset contains 10 000 test images/labels. We use 9000 of them as "calibration data" when evaluating marginal coverage.
 num_rounds = 10
 alpha = 0.1
-evaluate_marg_coverage(scores, num_rounds, n, alpha)
+#evaluate_marg_coverage(scores, num_rounds, n, alpha)
 
 # Evaluate adaptivity & conditional coverage
 num_of_labels = 10  # In the CIFAR10 dataset, we have 10 possible labels.
@@ -171,5 +171,7 @@ rest = len(softmax_scores) - n
 val_input = softmax_scores[rest:]   # The last examples of "softmax_scores" are used as validation data examples.
 val_label = test_labels[rest:]
 
-evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
-evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
+#evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
+#evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
+
+evaluate_efficiency(aps_appr, base_model, test_images[1000:1100], class_names, alpha, calibration_images, calibration_labels)

@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import datasets
-from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity
+from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
 
 
 """
@@ -34,13 +34,13 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_l
                 # 1) Get the threshold value
 
     # We first get the calibration dataset, which typically consists of 1000 sample.
-    predictions = model.predict(calib_input, batch_size=32)
+    predictions = model.predict(calib_input, batch_size=32, verbose=0)
 
     calib_probs = []     # Contains the nonconformity scores given by the score function for each example.
 
     for i in range(len(predictions)):  # For each calibration data example...
         # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
-        true_label = int(calib_label[i])    # Get the true label for this calibration data example.
+        true_label = int(calib_label[i].item())    # Get the true label for this calibration data example.
         calib_probs.append(score_function(predictions[i], true_label)) 
 
     #print("Calib_probs softmax scores:")
@@ -54,8 +54,8 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_l
     q = np.quantile(calib_probs, q_level / n, method='higher')
 
     #np.set_printoptions(precision=4, suppress=True)
-    print("\nThreshold value 'q' is: ")
-    print(q)
+    #print("\nThreshold value 'q' is: ")
+    #print(q)
     
     # We now have our threshold value "q", which is smaller than (1 - conf_level)*100 percent of all the values in calib_probs.
 
@@ -78,8 +78,8 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_l
         i = np.argmax(softmax_dist)     # We add the "most" probable label (according to the model) as the most likely true label.
         pred_region[labels[i]] = softmax_dist[i]
 
-    print("\nPrediction Region (conventional):")
-    print(pred_region)
+    #print("\nPrediction Region (conventional):")
+    #print(pred_region)
 
     if test_label is not None:  # If we have given some test label, then we can print it out.
         true_label = labels[int(test_label.item())]
@@ -93,12 +93,10 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_l
 
 #       1) Get a new test point
 # Load CNN model + CIFAR-10 test set and normalize to match training preprocessing
-base_model = tf.keras.models.load_model("cnn_softmax_model.keras")
+base_model = tf.keras.models.load_model("CNN/cnn_softmax_model.keras")
 (_, _), (test_images, test_labels) = datasets.cifar10.load_data()
 test_images = test_images.astype("float32") / 255.0
 
-
-'''
 # Get the first 1000 images + labels from the test data as calibration data.
 calibration_images = test_images[:1000]
 calibration_labels = test_labels[:1000]  
@@ -110,9 +108,7 @@ image_nr = 2000  # One image taken from the test images from the CIFAR10 dataset
 alpha = 0.1
 
 # Run conventional approach to CP.
-conv_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], alpha, test_labels[image_nr])
-'''
-
+#conv_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], alpha, test_labels[image_nr])
 
 softmax_scores = base_model.predict(test_images, batch_size=32) # Get the softmax scores for all test images.
 
@@ -140,3 +136,5 @@ val_label = test_labels[rest:]
 
 evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
 evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
+
+evaluate_efficiency(conv_appr, base_model, test_images[1000:1100], class_names, alpha, calibration_images, calibration_labels)
