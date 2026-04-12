@@ -167,7 +167,7 @@ def evaluate_marg_coverage(scores, num_rounds, n, alpha):
     plt.hist(coverages) # should be roughly centered at 1-alpha
     plt.show()
 
-def evaluate_efficiency(cp_appr, pred_model, test_images, labels, alpha, calib_input=None, calib_label=None):
+def evaluate_efficiency(cp_appr, softmax_dist, test_images, labels, alpha, calib_input=None, calib_label=None):
     '''
     Evaluate efficiency, i.e the average set size. The smaller the set sizes on average, the more efficient the method is.
 
@@ -184,9 +184,14 @@ def evaluate_efficiency(cp_appr, pred_model, test_images, labels, alpha, calib_i
     # For each test image, compute the prediction set and record the size
     # Split the data into 20 groups and take the mean of each group, then return the median of the means
     if (calib_input is None or calib_label is None):
-        set_sizes = [len(cp_appr(pred_model, labels, test_image, alpha)) for test_image in test_images]
+        set_sizes = [len(cp_appr(softmax_dist[i], labels, alpha)) for i in range(len(test_images))]
     else:
-        set_sizes = [len(cp_appr(pred_model, labels, calib_input, calib_label, test_image, alpha)) for test_image in test_images]
+        set_sizes = [len(cp_appr(softmax_dist[i], labels, calib_input, calib_label, alpha)) for i in range(len(test_images))]
+    # Calculate mean
+    print(f"Mean: {np.mean(set_sizes)}")
+    # Calculate tail, aka worst-case
+    print(f"90th percentile: {np.percentile(set_sizes, 90)}")
+    # Calculate median-of-means
     np.random.shuffle(set_sizes)
     groups = np.array_split(set_sizes, 20)
     means = [group.mean() for group in groups]

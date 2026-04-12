@@ -51,11 +51,11 @@ def score_function(softmax_dist, true_label):
     return score
 
 # model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  alpha = If we want a 90% coverage, then alpha = 0.1 (since coverage = 1 - alpha).
-def naive_appr(model, labels, test_point, alpha, test_label=None):  
-
+def naive_appr(softmax_dist, labels, alpha, test_label=None):
+    """
+    
+    """ 
     scores = np.zeros((len(labels,)))
-
-    softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
 
     # Get the nonconformity scores for every softmax score predicted by the model for this new data point.
     for i in range(len(scores)):
@@ -150,4 +150,4 @@ val_label = test_labels[rest:]
 evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
 evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
 
-evaluate_efficiency(naive_appr, base_model, test_images[:100], class_names, 0.1)
+evaluate_efficiency(naive_appr, softmax_scores, test_images, class_names, 0.1)
