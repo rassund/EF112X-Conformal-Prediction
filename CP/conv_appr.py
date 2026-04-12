@@ -29,19 +29,19 @@ def score_function(softmax_dist, true_label):
     return (1 - softmax_dist[true_label])
 
 # model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  alpha = If we want a 90% coverage, then alpha = 0.1 (since coverage = 1 - alpha).
-def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_label=None):  
+def conv_appr(softmax_dist, labels, calib_input, calib_label, alpha, test_label=None):  
 
                 # 1) Get the threshold value
 
     # We first get the calibration dataset, which typically consists of 1000 sample.
-    predictions = model.predict(calib_input, batch_size=32, verbose=0)
+    #predictions = model.predict(calib_input, batch_size=32, verbose=0)
 
     calib_probs = []     # Contains the nonconformity scores given by the score function for each example.
 
-    for i in range(len(predictions)):  # For each calibration data example...
+    for i in range(len(calib_input)):  # For each calibration data example...
         # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
         true_label = int(calib_label[i].item())    # Get the true label for this calibration data example.
-        calib_probs.append(score_function(predictions[i], true_label)) 
+        calib_probs.append(score_function(calib_input[i], true_label)) 
 
     #print("Calib_probs softmax scores:")
     #print(calib_probs)
@@ -62,7 +62,7 @@ def conv_appr(model, labels, calib_input, calib_label, test_point, alpha, test_l
 
                 # 2) Add labels into our prediction region.
     # Get the softmax distribution of the test point
-    softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
+    #softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
 
     # Now we add the labels whose nonconformity scores are lower than the threshold value "q". (Only the labels which the model deems "too unlikely" are excluded from the prediction region)
     pred_region = {}
@@ -98,8 +98,8 @@ base_model = tf.keras.models.load_model("CNN/cnn_softmax_model.keras")
 test_images = test_images.astype("float32") / 255.0
 
 # Get the first 1000 images + labels from the test data as calibration data.
-calibration_images = test_images[:1000]
-calibration_labels = test_labels[:1000]  
+#calibration_images = test_images[:1000]
+#calibration_labels = test_labels[:1000]  
 
 # All possible labels for the CIFAR10 dataset.
 class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
@@ -111,6 +111,7 @@ alpha = 0.1
 #conv_appr(base_model, class_names, calibration_images, calibration_labels, test_images[image_nr], alpha, test_labels[image_nr])
 
 softmax_scores = base_model.predict(test_images, batch_size=32) # Get the softmax scores for all test images.
+#calib_scores = base_model.predict(calibration_images, batch_size=32, verbose=0) # Get the softmax scores all calibration images.
 
 # Evaluating marginal coverage
 # Get the nonconformity scores for all test data, using this method's score function
@@ -137,4 +138,4 @@ val_label = test_labels[rest:]
 evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
 evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
 
-evaluate_efficiency(conv_appr, base_model, test_images[1000:1100], class_names, alpha, calibration_images, calibration_labels)
+evaluate_efficiency(conv_appr, softmax_scores, val_input, class_names, alpha, calib_input, calib_label)

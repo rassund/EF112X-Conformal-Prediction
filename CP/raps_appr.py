@@ -3,7 +3,6 @@ import numpy as np
 from tensorflow.keras import datasets
 from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
 
-
 """
 (The same as the APS approach, just that we add a “penalization term” to the score function.)
 
@@ -68,20 +67,20 @@ def score_function(softmax_dist, true_label):
 
 
 # model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  alpha = If we want a 90% coverage, then alpha = 0.1 (since coverage = 1 - alpha).
-def raps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_label=None):  
+def raps_appr(softmax_dist, labels, calib_input, calib_label, alpha, test_label=None):  
 
                 # 1) Get the threshold value
 
     # We first get the calibration dataset, which typically consists of 1000 sample.
-    calib_softmax_dist = model.predict(calib_input, batch_size=32, verbose=0)
+    #calib_softmax_dist = model.predict(calib_input, batch_size=32, verbose=0)
 
     calib_scores = []     # Contains the accumulates softmax masses (given by the score function) for all of the calibration data examples.
 
     # For each calibration data example, we get the "accumulative softmax mass" by adding up the softmax score for every label BEFORE we reach the example's true label.
-    for i in range(len(calib_softmax_dist)):  # For each calibration data example...
+    for i in range(len(calib_input)):  # For each calibration data example...
         # We add the score (accumulative softmax mass) for this calibration data example to the list of all calibration data scores.
         true_label = int(calib_label[i].item())    # Get the true label for this calibration data example.
-        calib_scores.append(score_function(calib_softmax_dist[i], true_label))          
+        calib_scores.append(score_function(calib_input[i], true_label))          
 
     #print("\nAccumulative softmax mass of the first 10 calib. data examples:")
     #print(calib_scores[10::])
@@ -98,7 +97,7 @@ def raps_appr(model, labels, calib_input, calib_label, test_point, alpha, test_l
 
                 # 2) Add labels into our prediction region.
     # Get the softmax distribution of the test point
-    softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
+    #softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
 
     #print("\nSoftmax Probability distribution:")
     #print(softmax_dist)
@@ -187,4 +186,4 @@ val_label = test_labels[rest:]
 evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
 evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
 
-evaluate_efficiency(raps_appr, base_model, test_images[1000:1100], class_names, alpha, calibration_images, calibration_labels)
+evaluate_efficiency(raps_appr, softmax_scores, val_input, class_names, alpha, calib_input, calib_label)
