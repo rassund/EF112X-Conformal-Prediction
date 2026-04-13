@@ -1,13 +1,13 @@
 # %%
 import tensorflow as tf
 from tensorflow.keras import datasets
-import naive_appr as naive, conv_appr as conv, aps_appr as aps, raps_appr as raps
+import naive_appr as naive, conv_appr as conv, daps_appr as daps, aps_appr as aps, raps_appr as raps
 from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
 
 def evaluate(cp_appr, has_calib_data=True):
     #       1) Get a new test point
     # Load CNN model + CIFAR-10 test set and normalize to match training preprocessing
-    base_model = tf.keras.models.load_model("CNN/cnn_softmax_model.keras")
+    base_model = tf.keras.models.load_model("CNN\cnn_softmax_model.keras")
     (_, _), (test_images, test_labels) = datasets.cifar10.load_data()
     test_images = test_images.astype("float32") / 255.0
 
@@ -40,16 +40,18 @@ def evaluate(cp_appr, has_calib_data=True):
     val_input = softmax_scores[rest:]   # The last examples of "softmax_scores" are used as validation data examples.
     val_label = test_labels[rest:]
 
-    evaluate_cond_coverage(cp_appr.score_function, calib_input, calib_label, val_input, val_label, alpha)
-    evaluate_adaptivity(cp_appr.score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
-
     if has_calib_data:
-        evaluate_efficiency(cp_appr.score_function, cp_appr.threshold(alpha, calib_input, calib_label, cp_appr.score_function), softmax_scores, val_input, class_names)
+        threshold = cp_appr.threshold(alpha, calib_input, calib_label, cp_appr.score_function)
     else:
-        evaluate_efficiency(cp_appr.score_function, cp_appr.threshold(alpha), softmax_scores, val_input, class_names)
+        threshold = cp_appr.threshold(alpha)
+
+    evaluate_cond_coverage(cp_appr.score_function, calib_input, calib_label, val_input, val_label, alpha)
+    evaluate_adaptivity(cp_appr.score_function, threshold, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
+    evaluate_efficiency(cp_appr.score_function, threshold, softmax_scores, val_input, class_names)
 
 #evaluate(naive, False)
-#evaluate(conv)
-#evaluate(aps)
+evaluate(conv)
+evaluate(daps)
+evaluate(aps)
 evaluate(raps)
 # %%

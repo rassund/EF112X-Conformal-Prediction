@@ -361,20 +361,7 @@ def evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, 
 # Given a call to a score function, a set of all possible labels, some "alpha" value, 
 # some "input & true label" pairs for calibration data and some "input & true label" pairs for validation data,
 # this function evaluates the adaptivity for the given data and the given score function by giving a histogram of the different prediction set sizes, and through the SSC metric.
-def evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha):
-    # We first get the threshold value for the given score function.
-    calib_scores = []
-    for i in range(len(calib_input)):  # For each calibration data example...
-        # We add the nonconformity score for this calibration data example to the list of all calibration data scores.
-        true_label = int(calib_label[i].item())    # Get the true label for this calibration data example.
-        calib_scores.append(score_function(calib_input[i], true_label))
-
-    # See "evaluate_marg_coverage()"
-    n = len(calib_scores)
-    q_level = int(np.ceil((n + 1) * (1 - alpha)))
-    threshold = np.quantile(calib_scores, q_level/n, method='higher') # We get the threshold value "q", which is the value at the "1-alpha":th quantile of the calibration data scores.
-    #threshold = 1 - alpha
-
+def evaluate_adaptivity(score_function, threshold, num_of_labels, calib_input, calib_label, val_input, val_label, alpha):
     # After we've gotten the threshold value, we can to find out which validation data examples should be in which group.
     val_scores = []
 

@@ -35,17 +35,15 @@ def score_function(softmax_dist, true_label):
     The score "s(x, y)" for the naive approach is then:
     The sum of all softmax scores higher than the true label's softmax score + the softmax score of the true label.
     """
-    
+  
     # Remember the softmax score of the true label.
     softmax_true_label = softmax_dist[true_label]
-
     score = 0
-
     # The score "s(input, true_label)" is equal to (the sum of all softmax scores bigger than the true label's softmax score) + (the true label's softmax score).
     for example in softmax_dist:
         if example >= softmax_true_label:
             score = score + example
-    
+  
     return score
 
 def threshold(alpha):

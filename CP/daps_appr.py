@@ -1,0 +1,64 @@
+import numpy as np
+
+"""
+Use calibration data. To get the threshold value “q”, for each calibration data example, we let the model get the softmax score for each label, 
+and then we order those softmax scores from highest to lowest. 
+Then, we see where in this “ranking” the true label for this calibration data example is. 
+If the true label is, for example, the “35th most likely label to fit with the input” (according to the model), 
+then we add together the softmax scores for the “1st most likely”, the 2nd most likely, the 3rd, the 4th, …, the 34th most likely and lastly the 35th most likely label. 
+We get a “accumulative softmax mass”. We do this for every calibration data example.
+
+If we want 90% coverage, then we pick a threshold value “q” such that “q” is bigger than ~90% of all the accumulative softmax masses from the calibration data.
+
+When we get a new test point (we know the input, not the true label), we get the softmax scores for every label, 
+order them from highest to lowest, and then we first pretend that the “1st most likely” label is the true label, 
+and use the (above explained) score function to generate its accumulative softmax mass. 
+Then we do the same for the 2nd most likely label, where we pretend that IT is the true label and we run the score function 
+(adding together the softmax score for the 1st most likely label and the 2nd most likely label). 
+Then we do the same for the 3rd most likely label, then the same for the 4th most likely label, etc…
+
+Once we have all our accumulative softmax masses for the new test point, we just pick the labels with an accumulative softmax mass below the threshold value “q”.
+"""
+
+NAME = "Deterministic APS"
+
+# NOTE: We could output a list of indexes, such that if we get a list of [2, 5, 6] then we know that labels with index 2, 5 and 6 should be a part of the Prediction Region.
+
+# Given some softmax probability distribution and the true label for this example, returns the nonconformity score for the APS approach (i.e returns the accumulative softmax mass of this input and softmax dist.)
+def score_function(softmax_dist, true_label):
+
+    score = 0
+
+    # Remember the softmax score of the true label.
+    softmax_true_label = softmax_dist[true_label]
+
+    # 1) Get the sum of all softmax scores for all the labels before the true label in the ranking. 
+    # Instead of having to sort the list of softmax scores, we can just add every softmax score that is HIGHER than the softmax score of the true label, into the score.
+    for i in range(len(softmax_dist)):  # Go through each softmax score.
+        if softmax_dist[i] > softmax_true_label:    # If we find some softmax score that is higher than the true label's softmax score, then that label would be "higher" in the ranking than the true label.
+            score = score + softmax_dist[i]
+
+    # 2) Add the softmax score of the true label * u
+    score = score + softmax_true_label
+            
+    # 3) Output the score for this softmax distribution.
+    return score
+
+def threshold(alpha, calib_input, calib_label, score_function):
+    calib_scores = []     # Contains the accumulates softmax masses (given by the score function) for all of the calibration data examples.
+
+    # For each calibration data example, we get the "accumulative softmax mass" by adding up the softmax score for every label BEFORE we reach the example's true label.
+    for i in range(len(calib_input)):  # For each calibration data example...
+        # We add the score (accumulative softmax mass) for this calibration data example to the list of all calibration data scores.
+        true_label = int(calib_label[i].item())    # Get the true label for this calibration data example.
+        calib_scores.append(score_function(calib_input[i], true_label))          
+
+    #print("\nAccumulative softmax mass of the first 10 calib. data examples:")
+    #print(calib_scores[10:])
+
+    # If we want a 90% coverage, and we know that the nonconformity score is always higher the more "bad" of a guess for true label the model gives, 
+    # then we want the threshold value "q" to be a value higher than 90% of all scores, i.e we want "q" to be in the 10th quantile of scores.
+    # We compute this value, the threshold value "q", using the formula presented in Chapter 1 of the paper "A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification" (Anastasios et. al)
+    n = len(calib_scores)
+    q_level = int(np.ceil((n + 1) * (1 - alpha)))
+    return np.quantile(calib_scores, q_level / n, method='higher')
