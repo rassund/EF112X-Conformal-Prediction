@@ -4,7 +4,7 @@ from tensorflow.keras import datasets
 import naive_appr as naive, conv_appr as conv, aps_appr as aps, raps_appr as raps
 from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
 
-def evaluate(cp_appr, name):
+def evaluate(cp_appr, has_calib_data=True):
     #       1) Get a new test point
     # Load CNN model + CIFAR-10 test set and normalize to match training preprocessing
     base_model = tf.keras.models.load_model("CNN/cnn_softmax_model.keras")
@@ -16,7 +16,7 @@ def evaluate(cp_appr, name):
 
     softmax_scores = base_model.predict(test_images, batch_size=32) # Get the softmax scores for all test images.
 
-    print(f"Evaluating {name}:")
+    print(f"Evaluating {cp_appr.NAME}:")
 
     # Evaluating marginal coverage
     # Get the nonconformity scores for all test data, using this method's score function
@@ -43,13 +43,13 @@ def evaluate(cp_appr, name):
     evaluate_cond_coverage(cp_appr.score_function, calib_input, calib_label, val_input, val_label, alpha)
     evaluate_adaptivity(cp_appr.score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
 
-    if name == "naive":
-        evaluate_efficiency(cp_appr.score_function, cp_appr.threshold(alpha), softmax_scores, val_input, class_names)
-    else:
+    if has_calib_data:
         evaluate_efficiency(cp_appr.score_function, cp_appr.threshold(alpha, calib_input, calib_label, cp_appr.score_function), softmax_scores, val_input, class_names)
+    else:
+        evaluate_efficiency(cp_appr.score_function, cp_appr.threshold(alpha), softmax_scores, val_input, class_names)
 
-#evaluate(naive, "naive")
-#evaluate(conv, "conventional")
-#evaluate(aps, "APS")
-evaluate(raps, "RAPS")
+#evaluate(naive, False)
+#evaluate(conv)
+#evaluate(aps)
+evaluate(raps)
 # %%

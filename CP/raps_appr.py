@@ -22,6 +22,7 @@ Then we do the same for the 3rd most likely label, then the same for the 4th mos
 Once we have all our penalized accumulative softmax masses for the new test point, we just pick the labels with a penalized accumulative softmax mass below the threshold value “q”.
 """
 
+NAME = "RAPS"
 
 # NOTE: We could output a list of indexes, such that if we get a list of [2, 5, 6] then we know that labels with index 2, 5 and 6 should be a part of the Prediction Region.
 

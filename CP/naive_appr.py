@@ -23,6 +23,8 @@ For example, if some label had a nonconformity score of 0.98 and we want a cover
 For that reason, we only have to exclude all labels whose nonconformity scores are higher than the required coverage!
 """
 
+NAME = "naive"
+
 # Given some softmax score distribution "x" for some data point, and that data point's true label "y", computes the "naive" score s(x, y) for this test point.
 def score_function(softmax_dist, true_label):
     """

@@ -14,6 +14,8 @@ When we get a new test point (we know the input, not the true label), we simply 
 and we see which labels give nonconformity scores which are lower than the threshold value. These labels are "likely enough" (according to the model) for them to be included in our prediction region.
 """
 
+NAME = "conventional"
+
 # NOTE: We could output a list of indexes, such that if we get a list of [2, 5, 6] then we know that labels with index 2, 5 and 6 should be a part of the Prediction Region.
 
 # Given some softmax score distribution "x" for some data point, and that data point's true label "y", computes the "conventional" score s(x, y) for this test point.
