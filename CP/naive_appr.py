@@ -1,8 +1,4 @@
-import tensorflow as tf
 import numpy as np
-from tensorflow.keras import datasets
-from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
-
 
 """
 No calibration data. 
@@ -50,11 +46,11 @@ def score_function(softmax_dist, true_label):
     
     return score
 
+def threshold(alpha):
+    return 1 - alpha
+
 # model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  alpha = If we want a 90% coverage, then alpha = 0.1 (since coverage = 1 - alpha).
 def naive_appr(softmax_dist, labels, alpha, test_label=None):
-    """
-    
-    """ 
     scores = np.zeros((len(labels,)))
 
     # Get the nonconformity scores for every softmax score predicted by the model for this new data point.
@@ -105,3 +101,7 @@ def naive_appr(softmax_dist, labels, alpha, test_label=None):
         print(f"\nTrue label is: '{true_label}'.\n")
 
     return pred_region
+
+# In regards to efficiency: the naive approach will produce an average set size close to 1, this is because
+# the softmax output will often contain a label with very high probability. So the naive approach only includes
+# that label in the prediction set. This is why the coverage is often far higher than the user-defined coverage.

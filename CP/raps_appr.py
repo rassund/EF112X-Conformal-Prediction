@@ -1,7 +1,4 @@
-import tensorflow as tf
 import numpy as np
-from tensorflow.keras import datasets
-from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
 
 """
 (The same as the APS approach, just that we add a “penalization term” to the score function.)
@@ -65,12 +62,7 @@ def score_function(softmax_dist, true_label):
     # 3) Output the score for this softmax distribution.
     return score
 
-
-# model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  alpha = If we want a 90% coverage, then alpha = 0.1 (since coverage = 1 - alpha).
-def raps_appr(softmax_dist, labels, calib_input, calib_label, alpha, test_label=None):  
-
-                # 1) Get the threshold value
-
+def threshold(alpha, calib_input, calib_label, score_function):
     # We first get the calibration dataset, which typically consists of 1000 sample.
     #calib_softmax_dist = model.predict(calib_input, batch_size=32, verbose=0)
 
@@ -91,50 +83,4 @@ def raps_appr(softmax_dist, labels, calib_input, calib_label, alpha, test_label=
     # We compute this value, the threshold value "q", using the formula presented in Chapter 1 of the paper "A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification" (Anastasios et. al)
     n = len(calib_scores)
     q_level = int(np.ceil((n + 1) * (1 - alpha)))
-    q = np.quantile(calib_scores, q_level / n, method='higher')
-    #print(f"\nThreshold value 'q' is: {q}")
-
-
-                # 2) Add labels into our prediction region.
-    # Get the softmax distribution of the test point
-    #softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
-
-    #print("\nSoftmax Probability distribution:")
-    #print(softmax_dist)
-
-    # Now we get the "accumulative softmax score" for each label in the softmax distribution. In other words, we first pretend that the first label in the ranking would be the "true label" and we get the acc. softmax mass.
-    #   Then we do the same for if the second label in the ranking would be the "true label". Then the same for every other label in the ranking.
-    scores = []
-
-    # Now we add every softmax score until we get to the example's true label, and we add it to the "acc_softmax" array.
-    for i in range(len(softmax_dist)):
-        # We pretend the "true label" is first the first label in the ranking, then the second, then the third...
-        scores.append(score_function(softmax_dist, i))
-
-        # The first element in the "acc_softmax" array will now be for the first label in the ranking of the softmax_dist array. The second element -||- the second label in softmax_dist. etc...
-
-    #print("\nAccumulative softmax mass for this test point: \n{ ")
-    #for i in range(len(softmax_dist)):
-    #    print(f"\t Label {i} : {scores[i]}, ")
-    #print("}")
-
-    # Now that we've gotten the accumulated softmax masses for the entire softmax distribution for this new test point, 
-    # we can now add every such mass that has a lower value than the threshold value "q" into our prediction region.
-    pred_region = {}
-    for i in range(len(softmax_dist)):  # Go through each accumulated softmax mass for this test point.
-        if scores[i] <= q:    # For the APS approach, we only want the labels whose accumulated softmax mass (score) is lower than the threshold value.
-            pred_region[labels[i]] = scores[i]
-
-    # Special case: If there are no nonconformity scores that are less than the confidence level, we just add the one with the lowest score.
-    if not bool(pred_region):
-        i = np.argmin(scores)
-        pred_region[labels[i]] = scores[i]
-
-    #print("\nPrediction Region (RAPS):")
-    #print(pred_region)
-
-    if test_label is not None:  # If we have given some test label, then we can print it out.
-        true_label = labels[int(test_label.item())]
-        print(f"\nTrue label is: '{true_label}'.\n")
-
-    return pred_region
+    return np.quantile(calib_scores, q_level / n, method='higher')

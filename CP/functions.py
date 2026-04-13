@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 from tensorflow.keras import datasets
 from collections import defaultdict
 
-
-def cifar10_get_softmax_dists(image_nr):
+def cifar10_get_softmax_dists(image_nr): # Is this used?
     # 1) Load your trained CNN
     #base_model = tf.keras.models.load_model("cnn-tensorflow_model.keras")
     base_model = tf.keras.models.load_model("cnn_softmax_model.keras")
@@ -59,7 +58,7 @@ def cifar10_get_softmax_dists(image_nr):
     plt.show()
 
 
-def cifar10_per_class_acc():
+def cifar10_per_class_acc(): # Is this used?
     # 1) Load your trained CNN
     #base_model = tf.keras.models.load_model("cnn-tensorflow_model.keras")
     model = tf.keras.models.load_model("testing.keras")
@@ -93,7 +92,48 @@ def cifar10_per_class_acc():
         accuracy_per_class = examples_with_correct_guess[i] / examples_per_class[i]
         print(f"Class {i}: {accuracy_per_class:.4f}")
 
+def create_prediction_set(score_function, threshold, softmax_dist, labels, test_label=None):
+    # Add labels into our prediction region.
 
+    #print("\nSoftmax Probability distribution:")
+    #print(softmax_dist)
+
+    # Now we get the "accumulative softmax score" for each label in the softmax distribution. In other words, we first pretend that the first label in the ranking would be the "true label" and we get the acc. softmax mass.
+    #   Then we do the same for if the second label in the ranking would be the "true label". Then the same for every other label in the ranking.
+    scores = []
+
+    # Now we add every softmax score until we get to the example's true label, and we add it to the "acc_softmax" array.
+    for i in range(len(softmax_dist)):
+        # We pretend the "true label" is first the first label in the ranking, then the second, then the third...
+        scores.append(score_function(softmax_dist, i))
+
+    # The first element in the "acc_softmax" array will now be for the first label in the ranking of the softmax_dist array. The second element -||- the second label in softmax_dist. etc...
+
+    #print("\nAccumulative softmax mass for this test point: \n{ ")
+    #for i in range(len(softmax_dist)):
+    #    print(f"\t Label {i} : {scores[i]}, ")
+    #print("}")
+
+    # Now that we've gotten the accumulated softmax masses for the entire softmax distribution for this new test point, 
+    # we can now add every such mass that has a lower value than the threshold value into our prediction region.
+    pred_region = {}
+    for i in range(len(softmax_dist)):  # Go through each accumulated softmax mass for this test point.
+        if scores[i] <= threshold:    # We only want the labels whose accumulated softmax mass (score) is lower than the threshold value.
+            pred_region[labels[i]] = scores[i]
+
+    # Special case: If there are no nonconformity scores that are less than the confidence level, we just add the one with the lowest score.
+    if not bool(pred_region):
+        i = np.argmin(scores)
+        pred_region[labels[i]] = scores[i]
+
+    #print("\nPrediction Region (RAPS):")
+    #print(pred_region)
+
+    if test_label is not None:  # If we have given some test label, then we can print it out.
+        true_label = labels[int(test_label.item())]
+        print(f"\nTrue label is: '{true_label}'.\n")
+
+    return pred_region
 
 # Given a set of scores (given by a score function by some conformal prediction method), a number of "rounds" to go through, the number of calibration data samples "n" (among the set of scores), 
 # and a value "alpha" (in which the desired coverage is "1 - alpha"), this function computes the marginal coverage for these scores.
@@ -167,7 +207,7 @@ def evaluate_marg_coverage(scores, num_rounds, n, alpha):
     plt.hist(coverages) # should be roughly centered at 1-alpha
     plt.show()
 
-def evaluate_efficiency(cp_appr, softmax_dist, test_images, labels, alpha, calib_input=None, calib_label=None):
+def evaluate_efficiency(score_function, threshold, softmax_dist, test_images, labels):
     '''
     Evaluate efficiency, i.e the average set size. The smaller the set sizes on average, the more efficient the method is.
 
@@ -183,10 +223,7 @@ def evaluate_efficiency(cp_appr, softmax_dist, test_images, labels, alpha, calib
     '''
     # For each test image, compute the prediction set and record the size
     # Split the data into 20 groups and take the mean of each group, then return the median of the means
-    if (calib_input is None or calib_label is None):
-        set_sizes = [len(cp_appr(softmax_dist[i], labels, alpha)) for i in range(len(test_images))]
-    else:
-        set_sizes = [len(cp_appr(softmax_dist[i], labels, calib_input, calib_label, alpha)) for i in range(len(test_images))]
+    set_sizes = [len(create_prediction_set(score_function, threshold, softmax_dist[i], labels)) for i in range(len(test_images))]
     # Calculate mean
     print(f"Mean: {np.mean(set_sizes)}")
     # Calculate tail, aka worst-case
@@ -336,6 +373,7 @@ def evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label,
     n = len(calib_scores)
     q_level = int(np.ceil((n + 1) * (1 - alpha)))
     threshold = np.quantile(calib_scores, q_level/n, method='higher') # We get the threshold value "q", which is the value at the "1-alpha":th quantile of the calibration data scores.
+    #threshold = 1 - alpha
 
     # After we've gotten the threshold value, we can to find out which validation data examples should be in which group.
     val_scores = []
@@ -357,16 +395,14 @@ def evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label,
     for i, example in enumerate(val_input):
 
         # We assemble the prediction set to find out how many elements would be in the example's prediction set.
-        scores = []
-
         # We first get the nonconformity score for each label.
-        for label in range(len(example)):
-            scores.append(score_function(val_input[i], label))
+        scores = np.array([score_function(val_input[i], label) for label in range(len(example))])
+        #print(scores)
 
         # After we've gotten a nonconformity score for each label for this example, we see which ones would be in the produced prediction region.
         # We get the amount of scores that are below the threshold value, i.e the scores for all labels that would be in the prediction set.
         num_of_labels_in_pred_set = (scores <= threshold).sum() # Goes through all scores in "scores". Every score that is lower than "threshold" makes it so the expression = True = 1. Otherwise, the expression = False = 0.
-
+        #print(num_of_labels_in_pred_set)
         # In order to show a histogram of the prediction set sizes for all examples, we add "+1" to the "pred_set_sizes" array, with the index being the length of the prediction set.
         pred_set_sizes[num_of_labels_in_pred_set - 1] += 1    # If we have 1 label in the prediction set, that would be put into index "0" in the "pred_set_sizes" array.
 
@@ -403,7 +439,7 @@ def evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label,
     set_sizes = []
     for i in range(num_of_labels):
         set_sizes.append(i+1)
-    
+
     plt.figure()
     plt.bar(set_sizes, pred_set_sizes)  # x-axle: set_sizes. y-axle: the number of examples in pred_set_sizes for each set_sizes value.
     plt.xlabel("Prediction set size")

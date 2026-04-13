@@ -1,8 +1,4 @@
-import tensorflow as tf
 import numpy as np
-from tensorflow.keras import datasets
-from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
-
 
 """
 Use calibration data. (CIFAR10 test images/labels, just a small part of them. We can then use one of the test images that were NOT chosen as calibration data to be used as a "new test point".)
@@ -28,14 +24,7 @@ def score_function(softmax_dist, true_label):
     # then the nonconformity score must be higher.
     return (1 - softmax_dist[true_label])
 
-# model = whole CNN model. labels = all possible labels for the input.  test_point = chosen new test point.   test_label = the true label of the chosen new test point.  alpha = If we want a 90% coverage, then alpha = 0.1 (since coverage = 1 - alpha).
-def conv_appr(softmax_dist, labels, calib_input, calib_label, alpha, test_label=None):  
-
-                # 1) Get the threshold value
-
-    # We first get the calibration dataset, which typically consists of 1000 sample.
-    #predictions = model.predict(calib_input, batch_size=32, verbose=0)
-
+def threshold(alpha, calib_input, calib_label, score_function):
     calib_probs = []     # Contains the nonconformity scores given by the score function for each example.
 
     for i in range(len(calib_input)):  # For each calibration data example...
@@ -51,40 +40,4 @@ def conv_appr(softmax_dist, labels, calib_input, calib_label, alpha, test_label=
     # We compute this value, the threshold value "q", using the formula presented in Chapter 1 of the paper "A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification" (Anastasios et. al)
     n = len(calib_probs)
     q_level = int(np.ceil((n + 1) * (1 - alpha)))
-    q = np.quantile(calib_probs, q_level / n, method='higher')
-
-    #np.set_printoptions(precision=4, suppress=True)
-    #print("\nThreshold value 'q' is: ")
-    #print(q)
-    
-    # We now have our threshold value "q", which is smaller than (1 - conf_level)*100 percent of all the values in calib_probs.
-
-
-                # 2) Add labels into our prediction region.
-    # Get the softmax distribution of the test point
-    #softmax_dist = model.predict(np.array([test_point]), verbose=0)[0] # (Taken from https://datascience.stackexchange.com/questions/13461/how-can-i-get-prediction-for-only-one-instance-in-keras)
-
-    # Now we add the labels whose nonconformity scores are lower than the threshold value "q". (Only the labels which the model deems "too unlikely" are excluded from the prediction region)
-    pred_region = {}
-    for i in range(len(softmax_dist)):  # Go through each softmax score.
-        # We pretend that each possible label is the "true label", so that we can get the nonconformity score if we pretend the 1st softmax score is for the true label, then teh same for the 2nd softmax score, then the same for the 3rd...
-        score = 1 - softmax_dist[i]     # Get the nonconformity score for this softmax score/label.
-        if score <= q: 
-            pred_region[labels[i]] = score
-            
-
-    # Special case: If there are no nonconformity scores that are less than the confidence level, we just add the one with the highest score.
-    if not bool(pred_region):
-        i = np.argmax(softmax_dist)     # We add the "most" probable label (according to the model) as the most likely true label.
-        pred_region[labels[i]] = softmax_dist[i]
-
-    #print("\nPrediction Region (conventional):")
-    #print(pred_region)
-
-    if test_label is not None:  # If we have given some test label, then we can print it out.
-        true_label = labels[int(test_label.item())]
-        print(f"\nTrue label is: '{true_label}'.\n")
-
-    # Possibly print something about "the true label is not in the prediction region" (using the given argument 'test_label').
-
-    return pred_region
+    return np.quantile(calib_probs, q_level / n, method='higher')

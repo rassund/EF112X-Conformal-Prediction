@@ -1,9 +1,10 @@
+# %%
 import tensorflow as tf
 from tensorflow.keras import datasets
 import naive_appr as naive, conv_appr as conv, aps_appr as aps, raps_appr as raps
 from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_adaptivity, evaluate_efficiency
 
-def evaluate(cp_appr, score_function, name):
+def evaluate(cp_appr, name):
     #       1) Get a new test point
     # Load CNN model + CIFAR-10 test set and normalize to match training preprocessing
     base_model = tf.keras.models.load_model("CNN/cnn_softmax_model.keras")
@@ -21,7 +22,7 @@ def evaluate(cp_appr, score_function, name):
     # Get the nonconformity scores for all test data, using this method's score function
     scores = []
     for i, example in enumerate(softmax_scores):
-        scores.append(score_function(example, test_labels[i]))  # Get the nonconformity score for this example
+        scores.append(cp_appr.score_function(example, test_labels[i]))  # Get the nonconformity score for this example
 
     n = 9000    # The CIFAR10 dataset contains 10 000 test images/labels. We use 9000 of them as "calibration data" when evaluating marginal coverage.
     num_rounds = 10
@@ -39,15 +40,16 @@ def evaluate(cp_appr, score_function, name):
     val_input = softmax_scores[rest:]   # The last examples of "softmax_scores" are used as validation data examples.
     val_label = test_labels[rest:]
 
-    evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, val_label, alpha)
-    evaluate_adaptivity(score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
+    evaluate_cond_coverage(cp_appr.score_function, calib_input, calib_label, val_input, val_label, alpha)
+    evaluate_adaptivity(cp_appr.score_function, num_of_labels, calib_input, calib_label, val_input, val_label, alpha)
 
     if name == "naive":
-        evaluate_efficiency(cp_appr, softmax_scores, val_input, class_names, alpha)
+        evaluate_efficiency(cp_appr.score_function, cp_appr.threshold(alpha), softmax_scores, val_input, class_names)
     else:
-        evaluate_efficiency(cp_appr, softmax_scores, val_input, class_names, alpha, calib_input, calib_label)
+        evaluate_efficiency(cp_appr.score_function, cp_appr.threshold(alpha, calib_input, calib_label, cp_appr.score_function), softmax_scores, val_input, class_names)
 
-evaluate(naive.naive_appr, naive.score_function, "naive")
-evaluate(conv.conv_appr, conv.score_function, "conventional")
-evaluate(aps.aps_appr, aps.score_function, "APS")
-evaluate(raps.raps_appr, raps.score_function, "RAPS")
+#evaluate(naive, "naive")
+#evaluate(conv, "conventional")
+#evaluate(aps, "APS")
+evaluate(raps, "RAPS")
+# %%
