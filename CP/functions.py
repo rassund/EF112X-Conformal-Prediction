@@ -223,15 +223,18 @@ def evaluate_efficiency(score_function, threshold, softmax_dist, test_images, la
     '''
     # For each test image, compute the prediction set and record the size
     # Split the data into 20 groups and take the mean of each group, then return the median of the means
-    set_sizes = [len(create_prediction_set(score_function, threshold, softmax_dist[i], labels)) for i in range(len(test_images))]
+    means = []
+    for _ in range(100):
+        set_sizes = [len(create_prediction_set(score_function, threshold, softmax_dist[i], labels)) for i in range(len(test_images))]
+        means.append(np.mean(set_sizes))
     # Calculate mean
-    print(f"Mean: {np.mean(set_sizes)}")
+    #print(f"Mean: {np.mean(set_sizes)}")
     # Calculate tail, aka worst-case
-    print(f"90th percentile: {np.percentile(set_sizes, 90)}")
+    #print(f"90th percentile: {np.percentile(set_sizes, 90)}")
     # Calculate median-of-means
-    np.random.shuffle(set_sizes)
-    groups = np.array_split(set_sizes, 20)
-    means = [group.mean() for group in groups]
+    #np.random.shuffle(set_sizes)
+    #groups = np.array_split(set_sizes, 20)
+    #means = [group.mean() for group in groups]
     median = np.median(means)
     print(f"Median-of-means: {median}")
     return median
@@ -434,6 +437,9 @@ def evaluate_adaptivity(score_function, threshold, num_of_labels, calib_input, c
     plt.title("Number of examples with each prediction set size")
     plt.show()
 
+    # Save the data for export
+    data = np.column_stack((set_sizes, pred_set_sizes))
+    np.savetxt("adaptivityData.dat", data, fmt="%d %d", header="set_size number_of_examples")
 
 
     # NOTE: Here are my previous notes for "evaluate_ssc()", which is a function not needed since the only difference between FSC and SSC is that in SSC, each group is divided on how many labels there are in the example's prediction set.

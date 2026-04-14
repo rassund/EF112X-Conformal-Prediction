@@ -50,8 +50,8 @@ def evaluate(cp_appr, has_calib_data=True):
     evaluate_efficiency(cp_appr.score_function, threshold, softmax_scores, val_input, class_names)
 
 #evaluate(naive, False)
-evaluate(conv)
-evaluate(daps)
-evaluate(aps)
+#evaluate(conv)
+#evaluate(daps)
+#evaluate(aps)
 evaluate(raps)
 # %%
