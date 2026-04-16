@@ -1,15 +1,22 @@
 import matplotlib.pyplot as plt
-from tensorflow.keras import datasets, layers, models, callbacks
+from tensorflow.keras import datasets, layers, models, callbacks, losses, Sequential, utils
 
 def train_model(dataset, num_classes):
 
     if "CIFAR10" in dataset:
         (train_images, train_labels), (test_images, test_labels) = datasets.cifar10.load_data()
+    elif "CIFAR100" in dataset:
+        (train_images, train_labels), (test_images, test_labels) = datasets.cifar100.load_data(label_mode="fine")
 
     # Normalize pixel values to be between 0 and 1
-    train_images, test_images = train_images / 255.0, test_images / 255.0   #NOTE: I don't think this is standardized... Will check after testing another training data set.
+    train_images = train_images.astype("float32") / 255.0
+    test_images = test_images.astype("float32") / 255.0   #NOTE: I don't think this is standardized... Will check after testing another training data set.
     # Why do this? What does it do? Well, when deciding the color of a chosen pixel in the image, we look at the color channels for that pixel (for example, for RGB, we look at the Red channel, the Green channel and the Blue channel).
     # The values for each color channel ranges from 0 to 255, and by instead having them be numbers between 0 and 1, it seems like it helps improve training stability (from what we could find).
+    #mean = train_images.mean(axis=(0,1,2), keepdims=True)
+    #std  = train_images.std(axis=(0,1,2), keepdims=True) + 1e-7
+    #train_images = (train_images - mean) / std
+    #test_images  = (test_images - mean) / std
 
     # Finding out the width and height of images and the color channels
     image_height = train_images.shape[1]
@@ -24,16 +31,45 @@ def train_model(dataset, num_classes):
         # After each convolution + activation layer, there is a pooling layer which reduces the size of the generated feature maps by
         # essentially "removing" all the unnecessary details/patterns found (thus also reducing the risk of overfitting).
 
-    model = models.Sequential()
+    #model = models.Sequential()
+    #model.add(Sequential([layers.RandomFlip('horizontal'), layers.RandomCrop(32, 32)]))
     # For the first convolution layer, we give a 3-channel RGB image, and we let the convolution layer output a tensor of size 32 (32 "versions" of the same image, since we say that we want to use 32 filters for this conv. layer)
-    model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(image_height, image_width, color_channels))) 
-    model.add(layers.MaxPooling2D((2, 2)))
-    # For the second convolution layer, we don't give a 3-channel RGB image: We instead give a tensor with 32 "channels" (different versions of the same image).
-    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-    model.add(layers.MaxPooling2D((2, 2)))
-    # Since the second conv. layer uses 64 filters, the third conv. layer receives a tensor with 64 channels.
-    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-
+    #model.add(layers.Conv2D(32, (3, 3), input_shape=(image_height, image_width, color_channels)))
+    #model.add(layers.BatchNormalization())
+    #model.add(layers.Activation('relu'))
+    #model.add(layers.MaxPooling2D((2, 2)))
+    ## For the second convolution layer, we don't give a 3-channel RGB image: We instead give a tensor with 32 "channels" (different versions of the same image).
+    #model.add(layers.Conv2D(64, (3, 3)))
+    #model.add(layers.BatchNormalization())
+    #model.add(layers.Activation('relu'))
+    #model.add(layers.MaxPooling2D((2, 2)))
+    ## Since the second conv. layer uses 64 filters, the third conv. layer receives a tensor with 64 channels.
+    #model.add(layers.Conv2D(128, (3, 3)))
+    #model.add(layers.BatchNormalization())
+    #model.add(layers.Activation('relu'))
+    def conv(filters):
+        return Sequential([
+            layers.Conv2D(filters, 3, padding="same"),
+            layers.BatchNormalization(),
+            layers.Activation("relu"),
+            layers.Conv2D(filters, 3, padding="same"),
+            layers.BatchNormalization(),
+            layers.Activation("relu"),
+            layers.MaxPooling2D(2)
+        ])
+    
+    norm = layers.Normalization(axis=-1)
+    norm.adapt(train_images)
+    model = models.Sequential([
+        layers.RandomFlip('horizontal'),
+        layers.RandomCrop(32, 32),
+        norm,
+        conv(32),
+        conv(64),
+        conv(128),
+        layers.GlobalAveragePooling2D(),
+        layers.Dense(num_classes, activation='softmax')
+    ])
 
     # To explain:
     # We create a sequential model, since CNNs are neural network architectures in which we basically just send some data (for example, images) through several layers, one after another in a sequence (i.e, sequentially).
@@ -55,29 +91,32 @@ def train_model(dataset, num_classes):
     # we need to feed the feature maps (the "channels", the different versions of an image in which each conv. filter creates one such version, saying where in the image that filter's specific pattern is most/least recognized) 
     # that are created through the convolutional + activation + pooling layers into a "dense"/"fully functional layer".
     # First of all, we need to "flatten" the feature maps (we essentially want to give all the features found in all feature maps to the dense layer in the form of one big list of features, instead of a list of feature maps which contain patterns).
-    model.add(layers.Flatten())
+    #model.add(layers.Flatten())
 
     # Now that we have added a flattening layer after all the convolutional + activation + pooling layers, we can do classification using dense layers.
-    model.add(layers.Dense(64, activation='relu'))
+    #model.add(layers.Dense(256, activation='relu'))
     # We take ALL of the features we've gathered from our images (we have 64 "versions" of each image / 64 feature maps, in which each image has a specific amount of pixels (height x width), meaning we have "height * width * # of feature maps" of "patterns" too look at for each image we have)
     # and we try to combine these into 64 large complex patterns, such as "cat-like", "feather-like" etc... (that's why we introduce an activation layer, so that we can try to group together all our found patterns into 64 complex, non-linear patterns).
     #   NOTE: It seems like it isn't important that we summarize the patterns into exactly 64 complex patterns: We CAN summarize them into 32 complex patterns, or 500, or... It just takes more space and might introduce more/less complexity.
 
-    model.add(layers.Dense(10))
+    #model.add(layers.Dense(10))
     # After we've "summarized" all the patterns we've found into 64 complex patterns (for example, "cat-like", "feather-like" etc...),
     # we can now use these "summarized" features to give a "score"/logit value to each of the 10 classes for this dataset
 
 
     # With GeeksForGeeks implementation
-    model.add(layers.Dense(num_classes, activation='softmax'))
+    #model.add(layers.Dense(num_classes, activation='softmax'))
 
 
-    early_stop = callbacks.EarlyStopping(monitor='loss', patience=1)    # Add an "early stop" for training the model: If the training loss stops improving for 1 epoch, then we stop running more epochs.
+    early_stop = callbacks.EarlyStopping(monitor='val_loss', patience=40, restore_best_weights=True)    # Add an "early stop" for training the model: If the training loss stops improving for 1 epoch, then we stop running more epochs.
+
+    train_labels = utils.to_categorical(train_labels, num_classes)
 
     # Now we can compile the model (we essentially tell the model HOW it should be training itself)
     model.compile(
         optimizer='adam',   # We use a common optimizer using the "Adam algorithm".
-        loss='sparse_categorical_crossentropy',     # We use the "sparse categorical cross-entropy" loss function.
+        #loss='sparse_categorical_crossentropy',     # We use the "sparse categorical cross-entropy" loss function.
+        loss=losses.CategoricalCrossentropy(label_smoothing=0.0),
         metrics=['accuracy']    # Just for us to read. We let the program show how much the accuracy of the model improves for each epoch completed during model training.
 )
     #       Explanation for the "optimizer" parameter:
@@ -95,11 +134,14 @@ def train_model(dataset, num_classes):
 
     # We then train the model.
     history = model.fit(train_images, train_labels,
-                        epochs=50,
+                        epochs=200,
                         batch_size=64,
                         validation_split=0.2,
                         verbose=1,
                         callbacks=[early_stop])
+    
+    preds = model.predict(test_images)
+    print(preds.max(axis=1).mean())
 
     plt.figure(figsize=(12,5))
 
@@ -146,4 +188,4 @@ def train_model(dataset, num_classes):
 
 
 
-train_model("CIFAR10", 10)
+train_model("CIFAR100", 100)

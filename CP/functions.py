@@ -224,7 +224,7 @@ def evaluate_efficiency(score_function, threshold, softmax_dist, test_images, la
     # For each test image, compute the prediction set and record the size
     # Split the data into 20 groups and take the mean of each group, then return the median of the means
     means = []
-    for _ in range(100):
+    for _ in range(10):
         set_sizes = [len(create_prediction_set(score_function, threshold, softmax_dist[i], labels)) for i in range(len(test_images))]
         means.append(np.mean(set_sizes))
     # Calculate mean
