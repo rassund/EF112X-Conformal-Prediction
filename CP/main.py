@@ -8,9 +8,9 @@ from functions import evaluate_marg_coverage, evaluate_cond_coverage, evaluate_a
 def evaluate(cp_appr, has_calib_data=True):
     #       1) Get a new test point
     # Load CNN model + CIFAR100 test set and normalize to match training preprocessing
-    base_model = tf.keras.models.load_model(r"C:\Users\rasmu\Documents\GitHub\EF112X-Conformal-Prediction\CNN\cnn_softmax_model.keras")
+    base_model = tf.keras.models.load_model(r"C:\Users\rasmu\Documents\GitHub\EF112X-Conformal-Prediction\CNN\cifar100_test.keras")
     (_, _), (test_images, test_labels) = datasets.cifar100.load_data(label_mode="fine")
-    test_images = test_images.astype("float32") / 255.0
+    #test_images = test_images.astype("float32") / 255.0
 
     # All possible labels for the CIFAR10 dataset.
     #class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
@@ -65,8 +65,8 @@ def evaluate(cp_appr, has_calib_data=True):
     evaluate_efficiency(cp_appr.score_function, threshold, softmax_scores, val_input, class_names)
 
 #evaluate(naive, False)
-evaluate(conv)
+#evaluate(conv)
 #evaluate(daps)
 #evaluate(aps)
-#evaluate(raps)
+evaluate(raps)
 # %%

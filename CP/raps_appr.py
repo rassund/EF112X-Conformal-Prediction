@@ -56,7 +56,8 @@ def score_function(softmax_dist, true_label):
     #   k_reg = essentially says at which place in the ranking we should start adding the penalty. Because we only want the positive part of "o_x(y) − k_reg", that means that if o_x(y) < k_reg then (o_x(y) − k_reg)^+ = 0 meaning the penalty is 0.
 
     #   For this program, we experiment with different λ and k_reg values. For example, λ = 1 and k_reg = 5 are chosen in chapter 3.4: "Experiment 4: Adaptiveness of RAPS on Imagenet" in the paper "Uncertainty Sets for Image Classifiers using Conformal Prediction".
-    penalization_factor = 1
+    penalization_factor = 0.01
+    print(f"Lambda {penalization_factor}")
     start_penalty_after_label = 5
     score = score + penalization_factor * max((rank - start_penalty_after_label), 0)    # Add penalization term. If rank - start_penalty_after_label is less than 0, then we instead have the penalty be 0.
             
