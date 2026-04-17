@@ -364,82 +364,88 @@ def evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, 
 # Given a call to a score function, a set of all possible labels, some "alpha" value, 
 # some "input & true label" pairs for calibration data and some "input & true label" pairs for validation data,
 # this function evaluates the adaptivity for the given data and the given score function by giving a histogram of the different prediction set sizes, and through the SSC metric.
-def evaluate_adaptivity(score_function, threshold, num_of_labels, calib_input, calib_label, val_input, val_label, alpha):
-    # After we've gotten the threshold value, we can to find out which validation data examples should be in which group.
-    val_scores = []
+def evaluate_adaptivity(score_function, threshold, num_of_labels, calib_input, calib_label, val_input, val_label):
+    all_pred_set_data = []
+    alphas = [0.01, 0.05, 0.1, 0.2]
 
-    '''
-        Group 1. The prediction set contains 1 element.
-        Group 2. The prediction set contains 1 < x =< [total number of labels / 2] elements.
-        Group 3. The prediction set contains > [total number of labels / 2] elements.
-    '''
-    size_group = {
-        1 : [],
-        2 : [],
-        3 : []
-    }
+    for alpha in alphas:
+        # To see how many prediction sets of each size there is, we use the below array.
+        pred_set_sizes = np.zeros(num_of_labels)   # A prediction set can have a maximum of "len(labels)" labels inside it, and a minimum of 1 label (or technically 0, but that should never happen)
+        pred_set_data = []
+        q = threshold(alpha, calib_input, calib_label, score_function)
+        # After we've gotten the threshold value, we can to find out which validation data examples should be in which group.
+        val_scores = []
 
-    # To see how many prediction sets of each size there is, we use the below array.
-    pred_set_sizes = np.zeros(num_of_labels)   # A prediction set can have a maximum of "len(labels)" labels inside it, and a minimum of 1 label (or technically 0, but that should never happen)
+        '''
+            Group 1. The prediction set contains 1 element.
+            Group 2. The prediction set contains 1 < x =< [total number of labels / 2] elements.
+            Group 3. The prediction set contains > [total number of labels / 2] elements.
+        '''
+        size_group = {
+            1 : [],
+            2 : [],
+            3 : []
+        }
 
-    for i, example in enumerate(val_input):
-
-        # We assemble the prediction set to find out how many elements would be in the example's prediction set.
-        # We first get the nonconformity score for each label.
-        scores = np.array([score_function(val_input[i], label) for label in range(len(example))])
-        #print(scores)
-
-        # After we've gotten a nonconformity score for each label for this example, we see which ones would be in the produced prediction region.
-        # We get the amount of scores that are below the threshold value, i.e the scores for all labels that would be in the prediction set.
-        num_of_labels_in_pred_set = (scores <= threshold).sum() # Goes through all scores in "scores". Every score that is lower than "threshold" makes it so the expression = True = 1. Otherwise, the expression = False = 0.
-        #print(num_of_labels_in_pred_set)
-        # In order to show a histogram of the prediction set sizes for all examples, we add "+1" to the "pred_set_sizes" array, with the index being the length of the prediction set.
-        pred_set_sizes[num_of_labels_in_pred_set - 1] += 1    # If we have 1 label in the prediction set, that would be put into index "0" in the "pred_set_sizes" array.
-
-        # Now we can put this example into the correct group in "size_group".
-        if num_of_labels_in_pred_set == 1:  # If the pred. set only contains only 1 label, we put it into group 1.
-            size_group[1].append(i)
-
-        elif num_of_labels_in_pred_set <= np.ceil(num_of_labels/2):   # If the pred. set contains from 2 to [total number of labels / 2] labels, we put it into group 2.
-            size_group[2].append(i)
-
-        else:
-            size_group[3].append(i) # Otherwise, if the pred. set contains more than [total number of labels / 2] labels, we put it into group 3.
+        for i, example in enumerate(val_input):
+            # We assemble the prediction set to find out how many elements would be in the example's prediction set.
+            # We first get the nonconformity score for each label.
+            scores = np.array([score_function(val_input[i], label) for label in range(len(example))])
+            #print(scores)
+            # After we've gotten a nonconformity score for each label for this example, we see which ones would be in the produced prediction region.
+            # We get the amount of scores that are below the threshold value, i.e the scores for all labels that would be in the prediction set.
+            num_of_labels_in_pred_set = (scores <= q).sum() # Goes through all scores in "scores". Every score that is lower than "threshold" makes it so the expression = True = 1. Otherwise, the expression = False = 0.
+            pred_set_data.append(num_of_labels_in_pred_set)
+            # In order to show a histogram of the prediction set sizes for all examples, we add "+1" to the "pred_set_sizes" array, with the index being the length of the prediction set.
+            pred_set_sizes[num_of_labels_in_pred_set - 1] += 1    # If we have 1 label in the prediction set, that would be put into index "0" in the "pred_set_sizes" array.
+            # Now we can put this example into the correct group in "size_group".
+            if num_of_labels_in_pred_set == 1:  # If the pred. set only contains only 1 label, we put it into group 1.
+                size_group[1].append(i)
+            elif num_of_labels_in_pred_set <= np.ceil(num_of_labels/2):   # If the pred. set contains from 2 to [total number of labels / 2] labels, we put it into group 2.
+                size_group[2].append(i)
+            else:
+                size_group[3].append(i) # Otherwise, if the pred. set contains more than [total number of labels / 2] labels, we put it into group 3.
+            
+            # We also save the softmax score of the actual true label into "val_scores".
+            true_label = int(val_label[i].item())
+            val_scores.append(scores[true_label])
         
-        # We also save the softmax score of the actual true label into "val_scores".
-        true_label = int(val_label[i].item())
-        val_scores.append(scores[true_label])
+        all_pred_set_data.append(pred_set_data)
+        print("\nNumber of examples in each group:")
+        for i, group in enumerate(size_group):
+            print(f"Group {i+1} in size_group has {len(size_group[group])} examples.\n")
+        # Once we've gone through every example and added them into the correct group, we can now get the SSC metric for this data (which is the same as the FSC metric, just that we use "size_group"...)
+        print(f"\nSSC gives a lowest mean empirical coverage of {evaluate_fsc(size_group, q, val_scores)} at alpha = {alpha}.\n")
+        # We can also show a histogram with the sizes of all validation example prediction sets, to see if there are varying sizes of prediction sets (which is required for good adaptivity)
+        # NOTE: pred_set_sizes gives the amount of examples with prediction sets of different lengths. 
+        #   pred_set_sizes[0] gives the amount of examples whose pred. sets contain only 1 label. 
+        #   pred_set_sizes[1] gives the amount of examples whose pred. sets contain 2 labels.
+        #   pred_set_sizes[2] gives -||- 3 labels.
+        #   etc....
+        # We create a figure which shows how many of each possible prediction set size we have (how many examples have only 1 label in their prediction set, how many have 2 labels, etc...)
+        # We first get an array of values from "1" to "num_of_labels+1" so that we can have the x-axle in our matplotlib plot be "1, 2, 3, 4, ..., num_of_labels" (so if num_of_labels = 5, then we get the x-axle to be "1  2  3  4  5".)
+        set_sizes = []
+        for i in range(num_of_labels):
+            set_sizes.append(i+1)
+        
+        # HISTOGRAM
+        #plt.figure()
+        #plt.bar(set_sizes, pred_set_sizes)  # x-axle: set_sizes. y-axle: the number of examples in pred_set_sizes for each set_sizes value.
+        #plt.xlabel("Prediction set size")
+        #plt.ylabel("Number of validation data examples")
+        #plt.title("Number of examples with each prediction set size")
+        #plt.show()
 
-    print("\nNumber of examples in each group:")
-    for i, group in enumerate(size_group):
-        print(f"Group {i+1} in size_group has {len(size_group[group])} examples.\n")
-
-    # Once we've gone through every example and added them into the correct group, we can now get the SSC metric for this data (which is the same as the FSC metric, just that we use "size_group"...)
-    print(f"\nSSC gives a lowest mean empirical coverage of {evaluate_fsc(size_group, threshold, val_scores)}.\n")
-
-    # We can also show a histogram with the sizes of all validation example prediction sets, to see if there are varying sizes of prediction sets (which is required for good adaptivity)
-    # NOTE: pred_set_sizes gives the amount of examples with prediction sets of different lengths. 
-    #   pred_set_sizes[0] gives the amount of examples whose pred. sets contain only 1 label. 
-    #   pred_set_sizes[1] gives the amount of examples whose pred. sets contain 2 labels.
-    #   pred_set_sizes[2] gives -||- 3 labels.
-    #   etc....
-
-    # We create a figure which shows how many of each possible prediction set size we have (how many examples have only 1 label in their prediction set, how many have 2 labels, etc...)
-    # We first get an array of values from "1" to "num_of_labels+1" so that we can have the x-axle in our matplotlib plot be "1, 2, 3, 4, ..., num_of_labels" (so if num_of_labels = 5, then we get the x-axle to be "1  2  3  4  5".)
-    set_sizes = []
-    for i in range(num_of_labels):
-        set_sizes.append(i+1)
-
-    plt.figure()
-    plt.bar(set_sizes, pred_set_sizes)  # x-axle: set_sizes. y-axle: the number of examples in pred_set_sizes for each set_sizes value.
-    plt.xlabel("Prediction set size")
-    plt.ylabel("Number of validation data examples")
-    plt.title("Number of examples with each prediction set size")
+    plt.boxplot(all_pred_set_data)
+    plt.xticks(range(1, len(alphas) + 1), alphas)
+    plt.xlabel("Alpha")
+    plt.ylabel("Prediction set size")
+    plt.title("Distribution of Prediction Set Sizes")
     plt.show()
 
     # Save the data for export
-    data = np.column_stack((set_sizes, pred_set_sizes))
-    np.savetxt("adaptivityData.dat", data, fmt="%d %d", header="set_size number_of_examples")
+    #data = np.column_stack((set_sizes, pred_set_sizes))
+    #np.savetxt("adaptivityData.dat", data, fmt="%d %d", header="set_size number_of_examples")
 
 
     # NOTE: Here are my previous notes for "evaluate_ssc()", which is a function not needed since the only difference between FSC and SSC is that in SSC, each group is divided on how many labels there are in the example's prediction set.
