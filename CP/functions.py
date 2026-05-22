@@ -366,7 +366,7 @@ def evaluate_cond_coverage(score_function, calib_input, calib_label, val_input, 
 # this function evaluates the adaptivity for the given data and the given score function by giving a histogram of the different prediction set sizes, and through the SSC metric.
 def evaluate_adaptivity(score_function, threshold, num_of_labels, calib_input, calib_label, val_input, val_label):
     all_pred_set_data = []
-    alphas = [0.01, 0.05, 0.1, 0.2]
+    alphas = [0.05, 0.1, 0.15]
 
     for alpha in alphas:
         # To see how many prediction sets of each size there is, we use the below array.
@@ -444,6 +444,30 @@ def evaluate_adaptivity(score_function, threshold, num_of_labels, calib_input, c
     plt.show()
 
     # Save the data for export
+    rows = []
+
+    for alpha, values in zip(alphas, all_pred_set_data):
+        values = np.array(values)
+
+        row = [
+            alpha,
+            np.min(values),
+            np.percentile(values, 25),
+            np.median(values),
+            np.percentile(values, 75),
+            np.max(values)
+        ]
+        rows.append(row)
+
+    data = np.array(rows)
+
+    np.savetxt(
+        "adaptivityData.dat",
+        data,
+        fmt="%.2f %.2f %.2f %.2f %.2f %.2f",
+        header="alpha min q1 median q3 max",
+        comments=''
+    )
     #data = np.column_stack((set_sizes, pred_set_sizes))
     #np.savetxt("adaptivityData.dat", data, fmt="%d %d", header="set_size number_of_examples")
 

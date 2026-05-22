@@ -52,6 +52,6 @@ def evaluate(cp_appr, has_calib_data=True):
 #evaluate(naive, False)
 #evaluate(conv)
 #evaluate(daps)
-#evaluate(aps)
-evaluate(raps)
+evaluate(aps)
+#evaluate(raps)
 # %%
